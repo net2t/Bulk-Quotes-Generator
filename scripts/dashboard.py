@@ -32,6 +32,119 @@ def load_config():
 
 CONFIG = load_config()
 
+SETTINGS_HTML = '''
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Settings - Quote Image Generator</title>
+    <style>
+        :root {
+            --ui-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+            --bg: radial-gradient(1200px 800px at 20% 10%, rgba(0, 210, 255, 0.25), transparent 60%),
+                  radial-gradient(900px 700px at 80% 20%, rgba(196, 113, 237, 0.25), transparent 60%),
+                  radial-gradient(1200px 900px at 50% 90%, rgba(255, 107, 157, 0.18), transparent 60%),
+                  linear-gradient(135deg, #090a1a 0%, #0b1026 40%, #070816 100%);
+            --text: rgba(230, 236, 255, 0.95);
+            --muted: rgba(230, 236, 255, 0.72);
+            --panel: rgba(255, 255, 255, 0.06);
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+            --accent: rgba(0, 210, 255, 0.85);
+            --accent-soft: rgba(0, 210, 255, 0.12);
+        }
+        body {
+            font-family: var(--ui-font);
+            background: var(--bg);
+            min-height: 100vh;
+            padding: 22px;
+            color: var(--text);
+            overflow-x: hidden;
+        }
+        .container {
+            max-width: 1100px;
+            margin: 0 auto;
+            border-radius: 24px;
+            padding: 28px;
+            background: var(--panel);
+            border: 1px solid var(--border);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+        }
+        .topbar {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 12px;
+            margin-bottom: 18px;
+        }
+        .badge {
+            font-size: 12px;
+            padding: 8px 10px;
+            border-radius: 999px;
+            background: rgba(255,255,255,0.06);
+            border: 1px solid rgba(255,255,255,0.12);
+            color: var(--muted);
+            display: inline-flex;
+            gap: 8px;
+            align-items: center;
+        }
+        a {
+            color: rgba(0, 210, 255, 0.95);
+            text-decoration: none;
+            font-weight: 650;
+        }
+        h1 { margin-bottom: 10px; font-size: 1.8em; }
+        h2 { margin: 18px 0 10px; font-size: 1.2em; }
+        .panel {
+            margin-top: 12px;
+            padding: 14px;
+            border-radius: 16px;
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.12);
+        }
+        pre {
+            white-space: pre-wrap;
+            word-break: break-word;
+            background: rgba(0,0,0,0.22);
+            border: 1px solid rgba(255,255,255,0.10);
+            padding: 12px;
+            border-radius: 12px;
+            color: rgba(241,245,255,0.95);
+            overflow-x: auto;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="topbar">
+            <div class="badge">⚙ Settings</div>
+            <div class="badge"><a href="/">← Back to Dashboard</a></div>
+        </div>
+
+        <h1>Quote Image Generator Settings</h1>
+
+        <div class="panel">
+            <h2>Config (references/config.json)</h2>
+            <pre>{{ config_text }}</pre>
+        </div>
+
+        <div class="panel">
+            <h2>Usage Guide (references/usage_guide.md)</h2>
+            <pre>{{ usage_text }}</pre>
+        </div>
+
+        <div class="panel">
+            <h2>Troubleshooting (references/troubleshooting.md)</h2>
+            <pre>{{ troubleshoot_text }}</pre>
+        </div>
+    </div>
+</body>
+</html>
+'''
+
 # Dashboard HTML Template
 DASHBOARD_HTML = '''
 <!DOCTYPE html>
@@ -475,7 +588,10 @@ DASHBOARD_HTML = '''
                     <option value="slate">Slate</option>
                 </select>
             </div>
-            <div class="badge" id="sheet-status">🔌 Sheet: connecting…</div>
+            <div style="display:flex; gap:10px; align-items:center;">
+                <div class="badge"><a href="/settings">⚙ Settings</a></div>
+                <div class="badge" id="sheet-status">🔌 Sheet: connecting…</div>
+            </div>
         </div>
         <h1>Quote Image Generator</h1>
         <p class="subtitle">Pick a topic, preview, then generate single or bulk images</p>
@@ -873,6 +989,26 @@ def get_fonts():
 def index():
     """Main dashboard page"""
     return render_template_string(DASHBOARD_HTML)
+
+@app.route('/settings')
+def settings():
+    try:
+        config_path = Path('references') / 'config.json'
+        usage_path = Path('references') / 'usage_guide.md'
+        troubleshoot_path = Path('references') / 'troubleshooting.md'
+
+        config_text = config_path.read_text(encoding='utf-8') if config_path.exists() else ''
+        usage_text = usage_path.read_text(encoding='utf-8') if usage_path.exists() else ''
+        troubleshoot_text = troubleshoot_path.read_text(encoding='utf-8') if troubleshoot_path.exists() else ''
+
+        return render_template_string(
+            SETTINGS_HTML,
+            config_text=config_text,
+            usage_text=usage_text,
+            troubleshoot_text=troubleshoot_text,
+        )
+    except Exception as e:
+        return f"Settings error: {e}", 500
 
 @app.route('/api/topics')
 def get_topics():
