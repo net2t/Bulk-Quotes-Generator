@@ -46,18 +46,29 @@ DASHBOARD_HTML = '''
         }
         :root {
             --ui-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji", "Segoe UI Emoji";
+
+            /* Theme variables */
+            --bg: radial-gradient(1200px 800px at 20% 10%, rgba(0, 210, 255, 0.25), transparent 60%),
+                  radial-gradient(900px 700px at 80% 20%, rgba(196, 113, 237, 0.25), transparent 60%),
+                  radial-gradient(1200px 900px at 50% 90%, rgba(255, 107, 157, 0.18), transparent 60%),
+                  linear-gradient(135deg, #090a1a 0%, #0b1026 40%, #070816 100%);
+            --text: rgba(230, 236, 255, 0.95);
+            --muted: rgba(230, 236, 255, 0.72);
+            --panel: rgba(255, 255, 255, 0.06);
+            --panel-2: rgba(255, 255, 255, 0.07);
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+            --accent: rgba(0, 210, 255, 0.85);
+            --accent-soft: rgba(0, 210, 255, 0.12);
+            --accent-2: rgba(196, 113, 237, 0.65);
         }
 
         body {
             font-family: var(--ui-font);
-            background:
-                radial-gradient(1200px 800px at 20% 10%, rgba(0, 210, 255, 0.25), transparent 60%),
-                radial-gradient(900px 700px at 80% 20%, rgba(196, 113, 237, 0.25), transparent 60%),
-                radial-gradient(1200px 900px at 50% 90%, rgba(255, 107, 157, 0.18), transparent 60%),
-                linear-gradient(135deg, #090a1a 0%, #0b1026 40%, #070816 100%);
+            background: var(--bg);
             min-height: 100vh;
             padding: 22px;
-            color: #e6ecff;
+            color: var(--text);
             overflow-x: hidden;
         }
         .container {
@@ -65,10 +76,10 @@ DASHBOARD_HTML = '''
             margin: 0 auto;
             border-radius: 24px;
             padding: 28px;
-            background: rgba(255, 255, 255, 0.06);
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            background: var(--panel);
+            border: 1px solid var(--border);
             box-shadow:
-                0 20px 60px rgba(0, 0, 0, 0.55),
+                var(--shadow),
                 0 0 0 1px rgba(255, 255, 255, 0.04) inset;
             backdrop-filter: blur(14px);
             -webkit-backdrop-filter: blur(14px);
@@ -94,15 +105,15 @@ DASHBOARD_HTML = '''
         }
         h1 {
             text-align: center;
-            color: #f1f5ff;
+            color: var(--text);
             margin-bottom: 8px;
             font-size: 2.2em;
             letter-spacing: 0.2px;
-            text-shadow: 0 10px 40px rgba(0, 210, 255, 0.12);
+            text-shadow: 0 10px 40px rgba(0, 0, 0, 0.25);
         }
         .subtitle {
             text-align: center;
-            color: rgba(230, 236, 255, 0.75);
+            color: var(--muted);
             margin-bottom: 22px;
         }
 
@@ -120,9 +131,9 @@ DASHBOARD_HTML = '''
             font-size: 12px;
             padding: 8px 10px;
             border-radius: 999px;
-            background: rgba(255, 255, 255, 0.07);
-            border: 1px solid rgba(255, 255, 255, 0.12);
-            color: rgba(230, 236, 255, 0.82);
+            background: var(--panel-2);
+            border: 1px solid var(--border);
+            color: var(--muted);
             display: inline-flex;
             gap: 8px;
             align-items: center;
@@ -142,16 +153,16 @@ DASHBOARD_HTML = '''
         label {
             margin-bottom: 8px;
             font-weight: 650;
-            color: rgba(230, 236, 255, 0.85);
+            color: var(--text);
         }
         select, button, input {
             padding: 12px 14px;
-            border: 1px solid rgba(255, 255, 255, 0.16);
+            border: 1px solid var(--border);
             border-radius: 12px;
             font-size: 14px;
             transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease, background 180ms ease;
-            background: rgba(255, 255, 255, 0.07);
-            color: rgba(241, 245, 255, 0.95);
+            background: var(--panel-2);
+            color: var(--text);
         }
 
         select option {
@@ -159,8 +170,8 @@ DASHBOARD_HTML = '''
         }
         select:focus, input:focus {
             outline: none;
-            border-color: rgba(0, 210, 255, 0.65);
-            box-shadow: 0 0 0 4px rgba(0, 210, 255, 0.12);
+            border-color: var(--accent);
+            box-shadow: 0 0 0 4px var(--accent-soft);
         }
         .style-selector {
             display: grid;
@@ -182,14 +193,14 @@ DASHBOARD_HTML = '''
             overflow: hidden;
         }
         .style-card:hover {
-            border-color: rgba(0, 210, 255, 0.6);
+            border-color: var(--accent);
             transform: translateY(-4px);
             box-shadow: 0 14px 30px rgba(0, 0, 0, 0.35);
         }
         .style-card.selected {
-            border-color: rgba(0, 210, 255, 0.9);
+            border-color: var(--accent);
             background: linear-gradient(135deg, rgba(0, 210, 255, 0.16), rgba(196, 113, 237, 0.12));
-            box-shadow: 0 16px 40px rgba(0, 210, 255, 0.10);
+            box-shadow: 0 16px 40px rgba(0, 0, 0, 0.20);
         }
         .style-icon {
             font-size: 2em;
@@ -200,12 +211,12 @@ DASHBOARD_HTML = '''
             color: rgba(241, 245, 255, 0.9);
         }
         .quote-display {
-            background: rgba(255, 255, 255, 0.06);
+            background: var(--panel);
             border-radius: 18px;
             padding: 18px;
             margin-bottom: 16px;
             min-height: 200px;
-            border: 1px solid rgba(255, 255, 255, 0.12);
+            border: 1px solid var(--border);
             position: relative;
             z-index: 1;
         }
@@ -247,13 +258,13 @@ DASHBOARD_HTML = '''
         .quote-text {
             font-size: 1.15em;
             line-height: 1.6;
-            color: rgba(241, 245, 255, 0.95);
+            color: var(--text);
             margin-bottom: 12px;
             font-style: italic;
         }
         .quote-author {
             text-align: right;
-            color: rgba(230, 236, 255, 0.72);
+            color: var(--muted);
             font-weight: 600;
         }
         .btn-generate {
@@ -334,26 +345,87 @@ DASHBOARD_HTML = '''
 
         .hint {
             font-size: 12px;
-            color: rgba(230, 236, 255, 0.65);
+            color: var(--muted);
             margin-top: 8px;
         }
 
+        /* Themes (reliable via variables) */
+        body[data-theme="futuristic"] {
+            --bg: radial-gradient(1200px 800px at 20% 10%, rgba(0, 210, 255, 0.25), transparent 60%),
+                  radial-gradient(900px 700px at 80% 20%, rgba(196, 113, 237, 0.25), transparent 60%),
+                  radial-gradient(1200px 900px at 50% 90%, rgba(255, 107, 157, 0.18), transparent 60%),
+                  linear-gradient(135deg, #090a1a 0%, #0b1026 40%, #070816 100%);
+            --text: rgba(230, 236, 255, 0.95);
+            --muted: rgba(230, 236, 255, 0.72);
+            --panel: rgba(255, 255, 255, 0.06);
+            --panel-2: rgba(255, 255, 255, 0.07);
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
+            --accent: rgba(0, 210, 255, 0.85);
+            --accent-soft: rgba(0, 210, 255, 0.12);
+            --accent-2: rgba(196, 113, 237, 0.65);
+        }
+
         body[data-theme="minimal"] {
-            background: linear-gradient(160deg, #ffffff 0%, #f5f6fa 60%, #eef2f7 100%);
-            color: #0f172a;
+            --bg: linear-gradient(160deg, #ffffff 0%, #f6f7fb 55%, #eef2f7 100%);
+            --text: rgba(15, 23, 42, 0.96);
+            --muted: rgba(15, 23, 42, 0.70);
+            --panel: rgba(255, 255, 255, 0.92);
+            --panel-2: rgba(15, 23, 42, 0.04);
+            --border: rgba(15, 23, 42, 0.14);
+            --shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+            --accent: rgba(37, 99, 235, 0.92);
+            --accent-soft: rgba(37, 99, 235, 0.12);
+            --accent-2: rgba(16, 185, 129, 0.70);
         }
 
-        body[data-theme="minimal"] .container {
-            background: rgba(255, 255, 255, 0.9);
-            border: 1px solid rgba(15, 23, 42, 0.12);
-            box-shadow: 0 24px 60px rgba(15, 23, 42, 0.12);
+        body[data-theme="midnight"] {
+            --bg: radial-gradient(circle at 15% 25%, rgba(59, 130, 246, 0.18), transparent 55%),
+                  radial-gradient(circle at 75% 15%, rgba(168, 85, 247, 0.16), transparent 55%),
+                  linear-gradient(135deg, #050615 0%, #070a1f 50%, #020313 100%);
+            --text: rgba(238, 242, 255, 0.96);
+            --muted: rgba(226, 232, 240, 0.72);
+            --panel: rgba(255, 255, 255, 0.06);
+            --panel-2: rgba(255, 255, 255, 0.07);
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow: 0 24px 70px rgba(0, 0, 0, 0.6);
+            --accent: rgba(59, 130, 246, 0.88);
+            --accent-soft: rgba(59, 130, 246, 0.14);
+            --accent-2: rgba(168, 85, 247, 0.64);
         }
 
-        body[data-theme="modern"] {
-            background: radial-gradient(circle at 10% 20%, rgba(0, 210, 255, 0.18), transparent 55%),
-                        radial-gradient(circle at 90% 20%, rgba(255, 107, 157, 0.14), transparent 50%),
-                        radial-gradient(circle at 70% 80%, rgba(196, 113, 237, 0.14), transparent 55%),
-                        #070b1a;
+        body[data-theme="aurora"] {
+            --bg: radial-gradient(circle at 20% 15%, rgba(16, 185, 129, 0.22), transparent 55%),
+                  radial-gradient(circle at 80% 25%, rgba(59, 130, 246, 0.20), transparent 55%),
+                  radial-gradient(circle at 55% 85%, rgba(236, 72, 153, 0.16), transparent 60%),
+                  linear-gradient(135deg, #050713 0%, #07112b 50%, #050713 100%);
+            --text: rgba(241, 245, 255, 0.96);
+            --muted: rgba(226, 232, 240, 0.72);
+            --panel: rgba(255, 255, 255, 0.06);
+            --panel-2: rgba(255, 255, 255, 0.07);
+            --border: rgba(255, 255, 255, 0.12);
+            --shadow: 0 24px 70px rgba(0, 0, 0, 0.58);
+            --accent: rgba(16, 185, 129, 0.88);
+            --accent-soft: rgba(16, 185, 129, 0.14);
+            --accent-2: rgba(59, 130, 246, 0.70);
+        }
+
+        body[data-theme="slate"] {
+            --bg: linear-gradient(135deg, #0b1220 0%, #0a1626 55%, #08101d 100%);
+            --text: rgba(241, 245, 255, 0.94);
+            --muted: rgba(203, 213, 225, 0.70);
+            --panel: rgba(148, 163, 184, 0.08);
+            --panel-2: rgba(148, 163, 184, 0.10);
+            --border: rgba(148, 163, 184, 0.18);
+            --shadow: 0 22px 64px rgba(0, 0, 0, 0.55);
+            --accent: rgba(148, 163, 184, 0.9);
+            --accent-soft: rgba(148, 163, 184, 0.14);
+            --accent-2: rgba(34, 211, 238, 0.60);
+        }
+
+        /* Theme-specific dropdown option color for light theme */
+        body[data-theme="minimal"] select option {
+            color: #111827;
         }
 
         .footer-actions {
@@ -395,8 +467,10 @@ DASHBOARD_HTML = '''
                 <div class="badge" id="theme-badge">⚡ Futuristic Dashboard</div>
                 <select id="theme" onchange="applyTheme()" style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.14); border-radius: 999px; padding: 8px 10px; color: rgba(241,245,255,0.92); font-size: 12px;">
                     <option value="futuristic" selected>Futuristic</option>
-                    <option value="minimal">Minimal</option>
-                    <option value="modern">Modern</option>
+                    <option value="minimal">Minimal Light</option>
+                    <option value="midnight">Midnight</option>
+                    <option value="aurora">Aurora</option>
+                    <option value="slate">Slate</option>
                 </select>
             </div>
             <div class="badge" id="sheet-status">🔌 Sheet: connecting…</div>
@@ -459,13 +533,6 @@ DASHBOARD_HTML = '''
                     <option value="Georgia">Georgia</option>
                 </select>
                 <div class="hint">Changes dashboard font only (not generated image fonts).</div>
-            </div>
-            <div class="bulk">
-                <h3>🧪 Preview</h3>
-                <button class="btn-generate" style="padding: 12px; font-size: 14px;" onclick="previewStyle()" id="preview-btn" disabled>
-                    👁 Preview This Style
-                </button>
-                <div class="hint">Generates a quick preview image for the selected quote + style.</div>
             </div>
             <div class="bulk">
                 <h3>📦 Bulk Generator</h3>
@@ -543,9 +610,6 @@ DASHBOARD_HTML = '''
         <div class="result" id="result">
             <h3 id="result-title">✅ Ready</h3>
             <p id="result-message"></p>
-            <div style="margin-top: 12px; border-radius: 16px; overflow: hidden; border: 1px solid rgba(255,255,255,0.14); background: rgba(0,0,0,0.18); display:none;" id="result-image-wrap">
-                <img id="result-image" alt="Result" style="width:100%; height:auto; display:block;" />
-            </div>
         </div>
     </div>
     <script>
@@ -555,6 +619,8 @@ DASHBOARD_HTML = '''
         let mode = 'sheet';
         // Load topics on page load
         window.onload = function() {
+            document.body.setAttribute('data-theme', 'futuristic');
+            loadUIFontOptions();
             fetch('/api/topics')
                 .then(r => r.json())
                 .then(data => {
@@ -570,6 +636,36 @@ DASHBOARD_HTML = '''
                 });
         };
 
+        function loadUIFontOptions() {
+            fetch('/api/fonts')
+                .then(r => r.json())
+                .then(data => {
+                    if (!data || !Array.isArray(data.fonts)) return;
+
+                    const select = document.getElementById('ui-font');
+                    const builtIns = new Set(['Inter', 'Segoe UI', 'Poppins', 'JetBrains Mono', 'Georgia']);
+                    const styleEl = document.createElement('style');
+                    styleEl.id = 'dynamic-font-faces';
+                    document.head.appendChild(styleEl);
+
+                    data.fonts.forEach(f => {
+                        if (!f || !f.family || !f.file) return;
+
+                        if (![...select.options].some(o => o.value === f.family)) {
+                            const opt = document.createElement('option');
+                            opt.value = f.family;
+                            opt.textContent = f.family + ' (Local)';
+                            select.appendChild(opt);
+                        }
+
+                        if (!builtIns.has(f.family)) {
+                            styleEl.textContent += `\n@font-face { font-family: "${f.family}"; src: url("/assets/fonts/${encodeURIComponent(f.file)}") format("truetype"); font-display: swap; }\n`;
+                        }
+                    });
+                })
+                .catch(() => {});
+        }
+
         function applyUIFont() {
             const f = document.getElementById('ui-font').value;
             document.documentElement.style.setProperty('--ui-font', `${f}, ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial`);
@@ -579,7 +675,7 @@ DASHBOARD_HTML = '''
             const t = document.getElementById('theme').value;
             document.body.setAttribute('data-theme', t);
             const badge = document.getElementById('theme-badge');
-            badge.textContent = (t === 'minimal') ? '◻ Minimal Dashboard' : (t === 'modern') ? '🔷 Modern Dashboard' : '⚡ Futuristic Dashboard';
+            badge.textContent = (t === 'minimal') ? '◻ Minimal Light' : (t === 'midnight') ? '🌙 Midnight' : (t === 'aurora') ? '🌈 Aurora' : (t === 'slate') ? '🪨 Slate' : '⚡ Futuristic Dashboard';
         }
 
         function toggleMode() {
@@ -594,14 +690,12 @@ DASHBOARD_HTML = '''
                 quoteSelect.disabled = true;
                 bulkBtn.disabled = true;
                 document.getElementById('generate-btn').disabled = false;
-                document.getElementById('preview-btn').disabled = false;
             } else {
                 manual.style.display = 'none';
                 topic.disabled = false;
                 quoteSelect.disabled = false;
                 // generate enabled only after selecting a quote
                 document.getElementById('generate-btn').disabled = true;
-                document.getElementById('preview-btn').disabled = true;
             }
         }
         function loadQuotes() {
@@ -630,7 +724,6 @@ DASHBOARD_HTML = '''
                             const avatar = document.getElementById('author-avatar');
                             avatar.src = currentQuote.author_image || currentQuote.image || '';
                             document.getElementById('generate-btn').disabled = false;
-                            document.getElementById('preview-btn').disabled = false;
                             document.getElementById('bulk-btn').disabled = false;
                         }
                     };
@@ -689,73 +782,15 @@ DASHBOARD_HTML = '''
                 const resultDiv = document.getElementById('result');
                 const title = document.getElementById('result-title');
                 const messageP = document.getElementById('result-message');
-                const wrap = document.getElementById('result-image-wrap');
-                const img = document.getElementById('result-image');
 
                 title.textContent = '✅ Image Generated';
                 messageP.innerHTML = `📁 <strong>Saved to:</strong> ${data.image_path}`;
-
-                if (data.public_url) {
-                    img.src = data.public_url;
-                    wrap.style.display = 'block';
-                }
                 resultDiv.classList.add('show');
             })
             .catch(err => {
                 document.getElementById('loading').classList.remove('show');
                 document.getElementById('generate-btn').disabled = false;
                 alert('Error generating image: ' + err);
-            });
-        }
-        function previewStyle(silent=false) {
-            if (mode === 'sheet' && !currentQuote) return;
-            document.getElementById('loading').classList.add('show');
-            let payload;
-            if (mode === 'manual') {
-                payload = {
-                    quote: document.getElementById('manual-quote').value || 'Preview text',
-                    author: document.getElementById('manual-author').value || 'Author',
-                    author_image: document.getElementById('manual-image').value || '',
-                    style: selectedStyle
-                };
-            } else {
-                payload = {
-                    quote: currentQuote.quote,
-                    author: currentQuote.author,
-                    author_image: currentQuote.author_image || currentQuote.image || '',
-                    style: selectedStyle
-                };
-            }
-            fetch('/api/preview', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            })
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('loading').classList.remove('show');
-                if (!data.success) {
-                    if (!silent) alert('Preview error: ' + data.error);
-                    return;
-                }
-                const resultDiv = document.getElementById('result');
-                const title = document.getElementById('result-title');
-                const messageP = document.getElementById('result-message');
-                const wrap = document.getElementById('result-image-wrap');
-                const img = document.getElementById('result-image');
-
-                title.textContent = '🧪 Preview';
-                messageP.innerHTML = `🧪 <strong>Preview:</strong> ${data.image_path}`;
-                if (data.public_url) {
-                    img.src = data.public_url;
-                    wrap.style.display = 'block';
-                }
-                if (silent) return;
-                resultDiv.classList.add('show');
-            })
-            .catch(err => {
-                document.getElementById('loading').classList.remove('show');
-                alert('Preview error: ' + err);
             });
         }
         function generateBulk() {
@@ -801,6 +836,25 @@ DASHBOARD_HTML = '''
 def generated(filename):
     """Serve generated images for dashboard preview"""
     return send_from_directory('Generated_Images', filename)
+
+@app.route('/assets/<path:filename>')
+def assets(filename):
+    """Serve static assets"""
+    return send_from_directory('assets', filename)
+
+@app.route('/api/fonts')
+def get_fonts():
+    """List available UI fonts from assets/fonts"""
+    try:
+        fonts_dir = Path('assets') / 'fonts'
+        fonts = []
+        if fonts_dir.exists():
+            for p in sorted(fonts_dir.glob('*.ttf')):
+                family = p.stem
+                fonts.append({'family': family, 'file': p.name})
+        return jsonify({'fonts': fonts})
+    except Exception as e:
+        return jsonify({'fonts': [], 'error': str(e)})
 
 @app.route('/')
 def index():
@@ -877,21 +931,6 @@ def generate():
             'error': str(e)
         })
 
-@app.route('/api/preview', methods=['POST'])
-def preview():
-    """Generate a preview image (no upload)"""
-    data = request.json
-    quote = data.get('quote')
-    author = data.get('author')
-    style = data.get('style', 'minimal')
-    try:
-        image_path = image_gen.generate(quote, author, style, add_watermark=False, author_image=str(data.get('author_image') or ''))
-        filename = Path(image_path).name
-        public_url = f"/generated/{filename}"
-        return jsonify({'success': True, 'image_path': image_path, 'public_url': public_url})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
-
 @app.route('/api/generate_bulk', methods=['POST'])
 def generate_bulk():
     """Bulk generation for a topic"""
@@ -959,5 +998,6 @@ if __name__ == '__main__':
     print("="*50)
     print("\n📱 Open your browser and go to:")
     print("   http://localhost:8000\n")
-    
-    app.run(host='0.0.0.0', port=8000, debug=True)
+
+    debug = str(os.getenv('DASHBOARD_DEBUG', '')).strip().lower() in ('1', 'true', 'yes', 'on')
+    app.run(host='0.0.0.0', port=8000, debug=debug, use_reloader=False)
