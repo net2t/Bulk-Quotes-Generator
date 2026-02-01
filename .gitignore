@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyd
+*.pyo
+*.egg-info/
+.venv/
+venv/
+.env
+
+# Local secrets / credentials
+credentials.json
+credentials2.json
+*.credentials.json
+
+# Generated assets
+Generated_Images/
+Watermarks/
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs
+*.log
