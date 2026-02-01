@@ -4,7 +4,7 @@ Image Generator
 Creates beautiful quote images with different design styles
 """
 
-from PIL import Image, ImageDraw, ImageFont, ImageFilter
+from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageChops
 from pathlib import Path
 import textwrap
 import random
@@ -117,7 +117,7 @@ class QuoteImageGenerator:
 
         return lines
 
-    def add_watermark(self, image, opacity=0.7):
+    def add_watermark(self, image, opacity=0.7, style: str = ''):
         """Add watermark from Watermarks folder"""
         watermark_files = list(self.watermark_dir.glob('*.png'))
         if not watermark_files:
@@ -126,28 +126,46 @@ class QuoteImageGenerator:
         try:
             watermark_path = watermark_files[0]
             watermark = Image.open(watermark_path).convert('RGBA')
-            
-            # Resize watermark to fit (max 20% of image size)
+
             max_size = min(self.width, self.height) // 5
             watermark.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-            
-            # Adjust opacity
-            watermark_alpha = watermark.split()[3]
-            watermark_alpha = watermark_alpha.point(lambda p: int(p * opacity))
-            watermark.putalpha(watermark_alpha)
-            
-            # Position in bottom right
+
             position = (
                 self.width - watermark.width - 30,
                 self.height - watermark.height - 30
             )
-            
-            # Paste watermark
-            image.paste(watermark, position, watermark)
-            
+
+            base = image.convert('RGBA')
+            wm = watermark.copy()
+
+            if str(style).strip().lower() == 'neon':
+                glow = wm.copy()
+                glow_alpha = glow.split()[3].point(lambda p: int(p * 0.92))
+                glow.putalpha(glow_alpha)
+                glow = glow.filter(ImageFilter.GaussianBlur(10))
+
+                layer_glow = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
+                layer_glow.paste(glow, position, glow)
+
+                layer_wm = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
+                wm_alpha = wm.split()[3].point(lambda p: int(p * opacity))
+                wm.putalpha(wm_alpha)
+                layer_wm.paste(wm, position, wm)
+
+                base = ImageChops.screen(base, layer_glow)
+                base = Image.alpha_composite(base, layer_wm)
+                return base
+
+            wm_alpha = wm.split()[3]
+            wm_alpha = wm_alpha.point(lambda p: int(p * opacity))
+            wm.putalpha(wm_alpha)
+
+            base.paste(wm, position, wm)
+            return base
+
         except Exception as e:
             print(f"Warning: Could not add watermark: {e}")
-        
+
         return image
 
     def generate(self, quote, author, style='minimal', add_watermark=True, author_image: str = ''):
@@ -157,7 +175,7 @@ class QuoteImageGenerator:
 
         img = self.add_avatar(img, author_image)
         if add_watermark:
-            img = self.add_watermark(img)
+            img = self.add_watermark(img, style=style)
 
         filename = f"quote_{style}_{random.randint(10000, 99999)}.png"
         output_path = self.output_dir / filename
