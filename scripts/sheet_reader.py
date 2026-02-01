@@ -10,6 +10,7 @@ import os
 import json
 from pathlib import Path
 from typing import Any, Optional
+from datetime import datetime
 
 class SheetReader:
     def __init__(self, credentials_path="credentials.json"):
@@ -137,6 +138,38 @@ class SheetReader:
             return True
         except Exception as e:
             print(f"Error writing back to sheet: {e}")
+            return False
+
+    def write_generation_meta(self, row: int, dimensions: str, generated_at: str) -> bool:
+        """Write generation metadata (dimensions + timestamp) to the end of the Database sheet.
+
+        Creates the columns if headers do not exist.
+        """
+        if not self.spreadsheet:
+            return False
+
+        try:
+            worksheet = self.spreadsheet.worksheet(self._get_database_worksheet_name())
+            headers = worksheet.row_values(1)
+            headers_norm = [str(h or '').strip() for h in headers]
+
+            def _ensure_header(name: str) -> int:
+                for i, h in enumerate(headers_norm, start=1):
+                    if h.strip().lower() == name.strip().lower():
+                        return i
+                idx = len(headers_norm) + 1
+                worksheet.update_cell(1, idx, name)
+                headers_norm.append(name)
+                return idx
+
+            dim_idx = _ensure_header('DIMENSIONS')
+            ts_idx = _ensure_header('GENERATED_AT')
+
+            worksheet.update_cell(int(row), int(dim_idx), str(dimensions))
+            worksheet.update_cell(int(row), int(ts_idx), str(generated_at))
+            return True
+        except Exception as e:
+            print(f"Error writing generation meta: {e}")
             return False
 
     def write_status(self, topic: str, row: int, status: str) -> bool:

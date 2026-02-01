@@ -8,6 +8,8 @@ from flask import Flask, render_template_string, request, jsonify, send_from_dir
 import os
 import json
 from pathlib import Path
+from datetime import datetime
+from PIL import Image
 from sheet_reader import SheetReader
 from image_generator import QuoteImageGenerator
 from google_drive_uploader import DriveUploader
@@ -499,6 +501,14 @@ DASHBOARD_HTML = '''
             </div>
 
             <div class="control-group">
+                <label for="watermark-mode">💧 Watermark</label>
+                <select id="watermark-mode">
+                    <option value="corner" selected>Corner</option>
+                    <option value="stripe">Stripe</option>
+                </select>
+            </div>
+
+            <div class="control-group">
                 <label for="mode">🧩 Mode</label>
                 <select id="mode" onchange="toggleMode()">
                     <option value="sheet" selected>Use Sheet</option>
@@ -760,6 +770,7 @@ DASHBOARD_HTML = '''
             }
 
             payload.upload_target = document.getElementById('upload-target').value;
+            payload.watermark_mode = document.getElementById('watermark-mode').value;
             
             document.getElementById('loading').classList.add('show');
             document.getElementById('result').classList.remove('show');
@@ -798,6 +809,7 @@ DASHBOARD_HTML = '''
             if (!topic) return;
             const count = parseInt(document.getElementById('bulk-count').value || '10', 10);
             const upload_target = document.getElementById('upload-target').value;
+            const watermark_mode = document.getElementById('watermark-mode').value;
             document.getElementById('loading').classList.add('show');
             document.getElementById('result').classList.remove('show');
             fetch('/api/generate_bulk', {
@@ -807,7 +819,8 @@ DASHBOARD_HTML = '''
                     topic,
                     style: selectedStyle,
                     count,
-                    upload_target
+                    upload_target,
+                    watermark_mode
                 })
             })
             .then(r => r.json())
@@ -884,11 +897,18 @@ def generate():
     style = data.get('style', 'minimal')
     topic = data.get('topic')
     upload_target = data.get('upload_target', 'none')
+    watermark_mode = data.get('watermark_mode', 'corner')
     row = data.get('row')
     
     try:
         # Generate image
-        image_path = image_gen.generate(quote, author, style, author_image=str(data.get('author_image') or ''))
+        image_path = image_gen.generate(
+            quote,
+            author,
+            style,
+            author_image=str(data.get('author_image') or ''),
+            watermark_mode=str(watermark_mode or 'corner')
+        )
 
         filename = Path(image_path).name
         public_url = f"/generated/{filename}"
@@ -911,6 +931,15 @@ def generate():
                 write_value = absolute_url
                 if topic and row:
                     ok = sheet_reader.write_back(str(topic), int(row), str(write_value))
+                    # Append metadata columns at end
+                    try:
+                        with Image.open(image_path) as im:
+                            dimensions = f"{im.width}x{im.height}"
+                    except Exception:
+                        dimensions = ""
+                    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    sheet_reader.write_generation_meta(int(row), dimensions, ts)
+
                     upload_result = "Wrote back to sheet" if ok else "Failed to write back"
                 else:
                     upload_result = "Missing topic/row for write-back"
@@ -939,6 +968,7 @@ def generate_bulk():
     style = data.get('style', 'minimal')
     count = int(data.get('count', 10) or 10)
     upload_target = data.get('upload_target', 'none')
+    watermark_mode = data.get('watermark_mode', 'corner')
     if not topic:
         return jsonify({'success': False, 'error': 'Topic required'})
     if count < 1:
@@ -960,7 +990,13 @@ def generate_bulk():
         generated_urls = []
         for q in selected_quotes:
             try:
-                p = image_gen.generate(q.get('quote', ''), q.get('author', 'Unknown'), style, author_image=str(q.get('author_image') or q.get('image') or ''))
+                p = image_gen.generate(
+                    q.get('quote', ''),
+                    q.get('author', 'Unknown'),
+                    style,
+                    author_image=str(q.get('author_image') or q.get('image') or ''),
+                    watermark_mode=str(watermark_mode or 'corner')
+                )
                 generated_paths.append(p)
                 fn = Path(p).name
                 pu = f"/generated/{fn}"
@@ -986,6 +1022,14 @@ def generate_bulk():
                     write_value = u
                     if q.get('_row'):
                         sheet_reader.write_back(str(topic), int(q.get('_row')), str(write_value))
+                        try:
+                            p = generated_paths[i]
+                            with Image.open(p) as im:
+                                dimensions = f"{im.width}x{im.height}"
+                        except Exception:
+                            dimensions = ""
+                        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        sheet_reader.write_generation_meta(int(q.get('_row')), dimensions, ts)
             except Exception as e:
                 print(f"Sheet write-back failed: {e}")
         return jsonify({'success': True, 'generated': len(generated_paths)})

@@ -10,6 +10,7 @@ import textwrap
 import random
 import io
 import urllib.request
+import math
 
 class QuoteImageGenerator:
     def __init__(self, output_dir="Generated_Images", watermark_dir="Watermarks"):
@@ -117,7 +118,7 @@ class QuoteImageGenerator:
 
         return lines
 
-    def add_watermark(self, image, opacity=0.7, style: str = ''):
+    def add_watermark(self, image, opacity=0.7, style: str = '', mode: str = 'corner'):
         """Add watermark from Watermarks folder"""
         watermark_files = list(self.watermark_dir.glob('*.png'))
         if not watermark_files:
@@ -126,6 +127,35 @@ class QuoteImageGenerator:
         try:
             watermark_path = watermark_files[0]
             watermark = Image.open(watermark_path).convert('RGBA')
+
+            if str(mode).strip().lower() == 'stripe':
+                base = image.convert('RGBA')
+                wm = watermark.copy()
+
+                w_target = max(160, int(min(self.width, self.height) * 0.12))
+                ratio = w_target / max(1, wm.width)
+                h_target = max(1, int(wm.height * ratio))
+                wm = wm.resize((w_target, h_target), Image.Resampling.LANCZOS)
+
+                alpha = wm.split()[3].point(lambda p: int(p * opacity))
+                wm.putalpha(alpha)
+
+                diag = int(math.hypot(self.width, self.height))
+                tile = Image.new('RGBA', (diag, diag), (0, 0, 0, 0))
+
+                step_x = int(wm.width * 1.8)
+                step_y = int(wm.height * 1.8)
+                for y in range(-wm.height, diag + wm.height, max(1, step_y)):
+                    for x in range(-wm.width, diag + wm.width, max(1, step_x)):
+                        tile.alpha_composite(wm, (x, y))
+
+                tile = tile.rotate(-22, resample=Image.Resampling.BICUBIC, expand=True)
+
+                left = max(0, (tile.width - self.width) // 2)
+                top = max(0, (tile.height - self.height) // 2)
+                tile = tile.crop((left, top, left + self.width, top + self.height))
+
+                return Image.alpha_composite(base, tile)
 
             max_size = min(self.width, self.height) // 5
             watermark.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
@@ -168,14 +198,14 @@ class QuoteImageGenerator:
 
         return image
 
-    def generate(self, quote, author, style='minimal', add_watermark=True, author_image: str = ''):
+    def generate(self, quote, author, style='minimal', add_watermark=True, author_image: str = '', watermark_mode: str = 'corner'):
         """Generate image and save"""
         style_func = self.styles.get(style, self.minimal_style)
         img = style_func(quote, author)
 
         img = self.add_avatar(img, author_image)
         if add_watermark:
-            img = self.add_watermark(img, style=style)
+            img = self.add_watermark(img, style=style, mode=watermark_mode)
 
         filename = f"quote_{style}_{random.randint(10000, 99999)}.png"
         output_path = self.output_dir / filename
