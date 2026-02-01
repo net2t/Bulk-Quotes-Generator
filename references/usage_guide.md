@@ -6,7 +6,7 @@
 
 Navigate to your project folder:
 ```bash
-cd "E:\New Gits\QUOTES"
+cd "c:\\Users\\NADEEM\\Downloads\\Quotes Images"
 ```
 
 Run setup script:
@@ -60,53 +60,45 @@ Open your browser and go to: http://localhost:8000
 2. **Choose Quote**
    - After selecting topic, quotes will load automatically
    - Click "Select Quote" dropdown
-   - Browse through available quotes
-   - Preview shows first 50 characters
+   - Pick an author/quote from the list
 
 3. **Pick Design Style**
-   - Click on one of the 5 style cards:
+   - Click on one of the style cards:
      - ⚪ **Minimal** - Clean, professional, white background
      - 🌈 **Bright** - Vibrant gradients, high energy
      - ✨ **Elegant** - Soft pastels, decorative borders
      - ⚡ **Bold** - Strong colors, maximum impact
      - 🔷 **Modern** - Geometric, contemporary
+     - 🧿 **Neon** - Dark futuristic neon with glow
 
-4. **Generate Image**
+4. **Choose Watermark Mode**
+   - **Corner**: watermark placed bottom-right
+   - **Stripe**: diagonal tiled watermark across the image
+
+5. **Generate Image**
    - Click the "Generate Image" button
    - Wait for processing (usually 2-5 seconds)
    - Image is created and watermark is added
+   - If the author image is available, a circular avatar is added top-left
 
-5. **Get Drive Link**
-   - Image automatically uploads to Google Drive
-   - Link appears in green success box
-   - Click to view or share
-   - Image also saved locally in `Generated_Images/`
+6. **Sheet Write-back (optional)**
+   - Turn on **Sheet Write-back** to write results back to your Google Sheet
+   - Writes:
+     - `PREVIEW_LINK` (Column H) as a clickable "Preview Image" hyperlink
+     - `STATUS` (Column I) as `Done`
+     - `DIMENSIONS` (auto-added column at end) like `1080x1080`
+     - `GENERATED_AT` (auto-added column at end) like `2026-02-01 21:05:00`
+   - Images are always saved locally in `Generated_Images/`
 
-## Batch Processing
+## Bulk Processing (Dashboard)
 
-For generating multiple images at once:
+Use the **Bulk Generator** panel in the dashboard:
+- Choose a topic
+- Choose a style
+- Set the count
+- Click **Generate Bulk**
 
-```bash
-python scripts/batch_generator.py --topic "Motivation" --style "bright" --count 10
-```
-
-**Parameters:**
-- `--topic` : Topic name (required)
-- `--style` : Design style (minimal/bright/elegant/bold/modern)
-- `--count` : Number of images to generate
-- `--upload` : Include this to upload to Google Drive
-
-**Examples:**
-
-Generate 20 motivational images:
-```bash
-python scripts/batch_generator.py --topic "Motivation" --style "bright" --count 20 --upload
-```
-
-Generate 5 elegant love quotes:
-```bash
-python scripts/batch_generator.py --topic "Love" --style "elegant" --count 5
-```
+If Sheet Write-back is enabled, bulk generation will also write back links + metadata per generated row.
 
 ## Design Style Guide
 
@@ -198,16 +190,15 @@ colors = [
 
 ### Custom Fonts
 
-1. Download TTF font files
-2. Place in `assets/fonts/` folder
-3. Update `image_generator.py`:
+There are two kinds of fonts:
 
-```python
-def get_font(self, size, bold=False):
-    if bold:
-        return ImageFont.truetype("assets/fonts/YourBoldFont.ttf", size)
-    return ImageFont.truetype("assets/fonts/YourFont.ttf", size)
-```
+1) **Generated image fonts**
+- Put `.ttf` files in `assets/fonts/`
+- The generator will automatically pick the first `.ttf` it finds as the default font
+
+2) **Dashboard UI fonts**
+- Put `.ttf` files in `assets/fonts/`
+- The dashboard loads them automatically and they appear as "(Local)" fonts in the Dashboard Font dropdown
 
 ## Advanced Features
 
@@ -253,16 +244,7 @@ self.styles = {
 
 ### Organizing Drive Uploads
 
-Images are organized by topic automatically:
-```
-Google Drive/
-└── Quote Images/
-    ├── Motivation/
-    │   ├── quote_bright_12345.png
-    │   └── quote_minimal_67890.png
-    ├── Love/
-    └── Wisdom/
-```
+Google Drive upload is currently disabled in the dashboard UI (kept in code for future use).
 
 ## Tips & Best Practices
 
@@ -298,8 +280,6 @@ Use the dashboard for precise control over individual images when you need speci
 ## Next Steps
 
 Once comfortable with basic usage:
-- Experiment with custom fonts
-- Create your own design styles
-- Integrate with social media APIs for auto-posting
-- Add text effects (shadows, outlines)
-- Implement multi-language support
+- Experiment with watermark stripe mode
+- Add more fonts in `assets/fonts/`
+- Add new design styles in `scripts/image_generator.py`

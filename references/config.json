@@ -107,7 +107,7 @@
       "JetBrains Mono",
       "Georgia"
     ],
-    "default_upload_target": "none"
+    "default_upload_target": "sheet"
   },
   "text_processing": {
     "max_quote_length": 280,

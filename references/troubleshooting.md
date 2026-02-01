@@ -1,3 +1,6 @@
+**Dashboard UI font not loading (404 /assets/fonts/...):**
+- Confirm the font file exists in `assets/fonts/`
+- Restart the dashboard server
 # Troubleshooting Guide
 
 ## Common Issues and Solutions
@@ -7,7 +10,7 @@
 **Problem:** "credentials.json not found" or authentication fails
 
 **Solutions:**
-- Ensure `credentials.json` exists in the project root (`E:\New Gits\QUOTES\`)
+- Ensure `credentials.json` exists in the project root (same folder as `scripts/`)
 - Verify it's a valid Google Service Account JSON file
 - Check that the service account has access to:
   - Google Sheets API
@@ -45,6 +48,10 @@ python scripts/setup_environment.py
 - Verify the PNG has transparency (alpha channel)
 - Check file permissions
 
+**Stripe watermark not visible:**
+- Increase watermark opacity (in code or future settings)
+- Use a higher-contrast watermark PNG
+
 ### 4. Font Rendering Issues
 
 **Problem:** Text appears as boxes or default font looks bad
@@ -61,12 +68,7 @@ python scripts/setup_environment.py
 
 **Problem:** Images generate but don't upload to Drive
 
-**Solutions:**
-- Verify Google Drive API is enabled
-- Check service account has "Editor" permission
-- Ensure enough storage space in Drive
-- Check network connectivity
-- Review error messages in console
+**Important:** Google Drive upload is currently disabled in the dashboard UI (kept in code for future use). Use Sheet write-back or local `Generated_Images/`.
 
 **Enable Google Drive API:**
 1. Go to Google Cloud Console
@@ -83,6 +85,11 @@ python scripts/setup_environment.py
 - Or modify code to use direct URL
 - Ensure sheet is shared with service account email
 - Check URL format (should include `/edit` or similar)
+
+**Sheet write-back columns:**
+- `PREVIEW_LINK` is written to column `H`
+- `STATUS` is written to column `I`
+- `DIMENSIONS` and `GENERATED_AT` are auto-added at the end of the sheet
 
 **Set environment variable (Windows):**
 ```cmd
@@ -106,6 +113,10 @@ export GOODREADS_SHEET_URL=https://docs.google.com/spreadsheets/d/YOUR_SHEET_ID/
   ```
 - Ensure Flask is installed: `pip install flask`
 - Check for syntax errors in imported modules
+
+**If you changed code and nothing updates in the browser:**
+- Stop the server with `CTRL + C`
+- Start again: `python scripts/dashboard.py`
 
 ### 8. Images Too Large/Small
 
