@@ -60,18 +60,19 @@ DASHBOARD_HTML = '''
         }
         :root {
             --ui-font: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial;
-            --bg: radial-gradient(1200px 800px at 20% 10%, rgba(0, 210, 255, 0.25), transparent 60%),
-                  radial-gradient(900px 700px at 80% 20%, rgba(196, 113, 237, 0.25), transparent 60%),
-                  radial-gradient(1200px 900px at 50% 90%, rgba(255, 107, 157, 0.18), transparent 60%),
-                  linear-gradient(135deg, #090a1a 0%, #0b1026 40%, #070816 100%);
-            --text: rgba(230, 236, 255, 0.95);
-            --muted: rgba(230, 236, 255, 0.72);
+            --bg: radial-gradient(1200px 800px at 18% 12%, rgba(20, 184, 166, 0.20), transparent 60%),
+                  radial-gradient(900px 700px at 82% 18%, rgba(249, 115, 22, 0.18), transparent 62%),
+                  linear-gradient(135deg, #070A10 0%, #0A1220 45%, #060812 100%);
+            --text: rgba(244, 247, 255, 0.94);
+            --muted: rgba(244, 247, 255, 0.70);
             --panel: rgba(255, 255, 255, 0.06);
-            --panel-2: rgba(255, 255, 255, 0.07);
+            --panel-2: rgba(255, 255, 255, 0.075);
             --border: rgba(255, 255, 255, 0.12);
             --shadow: 0 20px 60px rgba(0, 0, 0, 0.55);
-            --accent: rgba(0, 210, 255, 0.85);
-            --accent-soft: rgba(0, 210, 255, 0.12);
+            --accent: rgba(20, 184, 166, 0.92);
+            --accent-soft: rgba(20, 184, 166, 0.14);
+            --accent-2: rgba(249, 115, 22, 0.92);
+            --accent-2-soft: rgba(249, 115, 22, 0.14);
         }
 
         body {
@@ -102,8 +103,15 @@ DASHBOARD_HTML = '''
             content: '';
             position: absolute;
             inset: -2px;
-            background: radial-gradient(800px 500px at 20% 0%, rgba(0,210,255,0.25), transparent 60%),
-                        radial-gradient(900px 600px at 80% 20%, rgba(196,113,237,0.18), transparent 62%);
+            background:
+                repeating-linear-gradient(135deg,
+                    rgba(255,255,255,0.04) 0px,
+                    rgba(255,255,255,0.04) 1px,
+                    transparent 1px,
+                    transparent 14px
+                ),
+                radial-gradient(800px 500px at 18% 0%, rgba(20,184,166,0.22), transparent 60%),
+                radial-gradient(900px 600px at 85% 22%, rgba(249,115,22,0.18), transparent 62%);
             filter: blur(18px);
             opacity: 0.8;
             pointer-events: none;
@@ -236,8 +244,8 @@ DASHBOARD_HTML = '''
         
         .style-card.selected {
             border-color: var(--accent);
-            background: linear-gradient(135deg, rgba(0, 210, 255, 0.16), rgba(196, 113, 237, 0.12));
-            box-shadow: 0 14px 35px rgba(0, 210, 255, 0.2);
+            background: linear-gradient(135deg, rgba(20, 184, 166, 0.18), rgba(249, 115, 22, 0.10));
+            box-shadow: 0 14px 35px rgba(20, 184, 166, 0.18);
             transform: translateY(-2px);
         }
         
@@ -317,7 +325,7 @@ DASHBOARD_HTML = '''
         .btn-generate {
             width: 100%;
             padding: 18px;
-            background: linear-gradient(135deg, rgba(0, 210, 255, 0.85) 0%, rgba(196, 113, 237, 0.78) 100%);
+            background: linear-gradient(135deg, rgba(20, 184, 166, 0.92) 0%, rgba(249, 115, 22, 0.90) 100%);
             color: white;
             border: none;
             border-radius: 14px;
