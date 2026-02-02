@@ -8,6 +8,10 @@ __pycache__/
 venv/
 .env
 
+# Local backups created by upgrade scripts
+backups/
+backup_*/
+
 # Local secrets / credentials
 credentials.json
 credentials2.json
