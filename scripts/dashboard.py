@@ -698,41 +698,41 @@ DASHBOARD_HTML = '''
         function loadQuotes() {
             const topic = document.getElementById('topic').value;
             if (!topic) return;
-            fetch(`/api/quotes/${topic}`)
-                .then(r => r.json())
-                .then(data => {
-                    allQuotes = data.quotes;
-                    const select = document.getElementById('quote-select');
-                    select.innerHTML = '<option value="">Choose quote...</option>';
-                    const authorCounts = {};
-                    data.quotes.forEach(q => {
-                        const a = (q.author || 'Unknown').toString();
-                        authorCounts[a] = (authorCounts[a] || 0) + 1;
-                    });
-                    data.quotes.forEach((quote, index) => {
-                        const option = document.createElement('option');
-                        option.value = index;
-                        const a = (quote.author || 'Unknown').toString();
-                        const c = authorCounts[a] || 0;
-                        option.textContent = `${a} (${c})`;
-                        select.appendChild(option);
-                    });
-                    select.onchange = function() {
-                        const idx = this.value;
-                        if (idx !== '') {
-                            currentQuote = allQuotes[idx];
-                            document.getElementById('current-quote').textContent = `"${currentQuote.quote}"`;
-                            document.getElementById('current-author').textContent = `— ${currentQuote.author}`;
-                            const a = (currentQuote.author || 'Unknown').toString();
-                            const remaining = authorCounts[a] || 0;
-                            document.getElementById('meta-pill').textContent = `Remaining quotes: ${remaining}`;
-                            const avatar = document.getElementById('author-avatar');
-                            avatar.src = currentQuote.author_image || currentQuote.image || '';
-                            document.getElementById('generate-btn').disabled = false;
-                            document.getElementById('bulk-btn').disabled = false;
-                        }
-                    };
+            Promise.all([
+                fetch(`/api/quotes/${topic}`).then(r => r.json()),
+                fetch(`/api/remaining/${topic}`).then(r => r.json()).catch(() => ({ topic_total: 0, authors: {} }))
+            ]).then(([qData, remData]) => {
+                allQuotes = qData.quotes;
+                const select = document.getElementById('quote-select');
+                select.innerHTML = '<option value="">Choose quote...</option>';
+
+                const remainingByAuthor = (remData && remData.authors) ? remData.authors : {};
+                const remainingTotal = (remData && typeof remData.topic_total === 'number') ? remData.topic_total : 0;
+
+                allQuotes.forEach((quote, index) => {
+                    const option = document.createElement('option');
+                    option.value = index;
+                    const a = (quote.author || 'Unknown').toString();
+                    const c = remainingByAuthor[a] || 0;
+                    option.textContent = `${a} (${c})`;
+                    select.appendChild(option);
                 });
+                select.onchange = function() {
+                    const idx = this.value;
+                    if (idx !== '') {
+                        currentQuote = allQuotes[idx];
+                        document.getElementById('current-quote').textContent = `"${currentQuote.quote}"`;
+                        document.getElementById('current-author').textContent = `— ${currentQuote.author}`;
+                        const a = (currentQuote.author || 'Unknown').toString();
+                        const remaining = remainingByAuthor[a] || 0;
+                        document.getElementById('meta-pill').textContent = `Remaining: ${remaining} (Topic remaining: ${remainingTotal})`;
+                        const avatar = document.getElementById('author-avatar');
+                        avatar.src = currentQuote.author_image || currentQuote.image || '';
+                        document.getElementById('generate-btn').disabled = false;
+                        document.getElementById('bulk-btn').disabled = false;
+                    }
+                };
+            });
         }
         
         function selectStyle(style) {
@@ -885,6 +885,14 @@ def get_quotes(topic):
     """Get quotes for topic"""
     quotes = sheet_reader.get_quotes_by_topic(topic)
     return jsonify({'quotes': quotes})
+
+@app.route('/api/remaining/<topic>')
+def get_remaining(topic):
+    """Get remaining (not Done) counts for a topic and authors"""
+    if not sheet_reader.spreadsheet:
+        sheet_reader.connect()
+    counts = sheet_reader.get_remaining_counts(topic)
+    return jsonify(counts)
 
 @app.route('/api/generate', methods=['POST'])
 def generate():

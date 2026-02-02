@@ -78,6 +78,78 @@ class SheetReader:
             print(f"Error connecting to Google Sheets: {e}")
             return False
 
+    def get_remaining_counts(self, topic: str) -> dict:
+        """Return remaining (not Done) counts for the given topic.
+
+        Returns:
+            {
+              "topic_total": int,
+              "authors": {"Name": int, ...}
+            }
+        """
+        if not self.spreadsheet:
+            return {"topic_total": 0, "authors": {}}
+
+        try:
+            worksheet = self.spreadsheet.worksheet(self._get_database_worksheet_name())
+            records = worksheet.get_all_records()
+
+            def _get_any(d: dict, *keys: str, default: Any = None) -> Any:
+                for k in keys:
+                    if k in d and d.get(k) not in (None, ""):
+                        return d.get(k)
+                return default
+
+            sheet_cfg = self.config.get("google_sheets") or {}
+            done_value = str(sheet_cfg.get("status_done_value", "Done")).strip().lower()
+            skip_value = str(sheet_cfg.get("status_skip_value", "Skip")).strip()
+            max_len = sheet_cfg.get("max_length")
+            english_only = bool(sheet_cfg.get("english_only"))
+
+            def _is_english(s: str) -> bool:
+                try:
+                    s.encode("ascii")
+                    return True
+                except Exception:
+                    return False
+
+            topic_total = 0
+            authors: dict[str, int] = {}
+            for record in records:
+                status_val = _get_any(record, 'STATUS', 'Status', 'status', default='')
+                if str(status_val).strip().lower() == done_value:
+                    continue
+
+                cat = _get_any(record, 'CATEGORY', 'Category', 'Category ', 'category', default='')
+                if str(cat).strip() != str(topic).strip():
+                    continue
+
+                a = _get_any(record, 'AUTHOR', 'Author', 'author', 'POET', 'Poet', 'poet', default='Unknown')
+                a = str(a).strip() or 'Unknown'
+
+                # Apply same filters as get_quotes_by_topic so counts reflect what can be generated
+                length_val = _get_any(record, 'LENGTH', 'Length', 'length', default=None)
+                try:
+                    length_num = int(length_val) if length_val not in (None, "") else None
+                except Exception:
+                    length_num = None
+                if isinstance(max_len, int) and length_num is not None and length_num > max_len:
+                    continue
+
+                quote_text = _get_any(record, 'QUOTE', 'Quote', 'quote', default='')
+                if not quote_text:
+                    continue
+                if english_only and not _is_english(str(quote_text)):
+                    continue
+
+                topic_total += 1
+                authors[a] = int(authors.get(a, 0)) + 1
+
+            return {"topic_total": int(topic_total), "authors": authors}
+        except Exception as e:
+            print(f"Error computing remaining counts: {e}")
+            return {"topic_total": 0, "authors": {}}
+
     def get_all_topics(self):
         """Get list of all available topics (unique CATEGORY values)"""
         if not self.spreadsheet:
