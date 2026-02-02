@@ -604,6 +604,23 @@ DASHBOARD_HTML = '''
                 </select>
                 <div class="hint">Color Match adapts watermark to image colors</div>
             </div>
+
+            <div class="settings-card">
+                <h3>🫧 Watermark Opacity</h3>
+                <input id="watermark-opacity" type="number" min="0" max="1" step="0.05" value="0.70" />
+                <div class="hint">0 = hidden, 1 = solid</div>
+            </div>
+
+            <div class="settings-card">
+                <h3>🎚️ Blend Mode</h3>
+                <select id="watermark-blend">
+                    <option value="normal" selected>Normal</option>
+                    <option value="multiply">Multiply</option>
+                    <option value="screen">Screen</option>
+                    <option value="overlay">Overlay</option>
+                </select>
+                <div class="hint">Try Multiply or Screen if watermark looks missing</div>
+            </div>
             
             <div class="settings-card">
                 <h3>👤 Avatar Position</h3>
@@ -687,10 +704,17 @@ DASHBOARD_HTML = '''
                     allQuotes = data.quotes;
                     const select = document.getElementById('quote-select');
                     select.innerHTML = '<option value="">Choose quote...</option>';
+                    const authorCounts = {};
+                    data.quotes.forEach(q => {
+                        const a = (q.author || 'Unknown').toString();
+                        authorCounts[a] = (authorCounts[a] || 0) + 1;
+                    });
                     data.quotes.forEach((quote, index) => {
                         const option = document.createElement('option');
                         option.value = index;
-                        option.textContent = quote.author || 'Unknown';
+                        const a = (quote.author || 'Unknown').toString();
+                        const c = authorCounts[a] || 0;
+                        option.textContent = `${a} (${c})`;
                         select.appendChild(option);
                     });
                     select.onchange = function() {
@@ -699,7 +723,9 @@ DASHBOARD_HTML = '''
                             currentQuote = allQuotes[idx];
                             document.getElementById('current-quote').textContent = `"${currentQuote.quote}"`;
                             document.getElementById('current-author').textContent = `— ${currentQuote.author}`;
-                            document.getElementById('meta-pill').textContent = `Length: ${currentQuote.length ?? '—'}`;
+                            const a = (currentQuote.author || 'Unknown').toString();
+                            const remaining = authorCounts[a] || 0;
+                            document.getElementById('meta-pill').textContent = `Remaining quotes: ${remaining}`;
                             const avatar = document.getElementById('author-avatar');
                             avatar.src = currentQuote.author_image || currentQuote.image || '';
                             document.getElementById('generate-btn').disabled = false;
@@ -720,6 +746,9 @@ DASHBOARD_HTML = '''
         function generateImage() {
             if (mode === 'sheet' && !currentQuote) return;
 
+            const opacityRaw = document.getElementById('watermark-opacity').value;
+            const watermark_opacity = Math.max(0, Math.min(1, parseFloat(opacityRaw || '0.7')));
+
             const payload = {
                 quote: currentQuote.quote,
                 author: currentQuote.author,
@@ -729,6 +758,8 @@ DASHBOARD_HTML = '''
                 row: currentQuote._row || null,
                 upload_target: document.getElementById('upload-target').value,
                 watermark_mode: document.getElementById('watermark-mode').value,
+                watermark_opacity,
+                watermark_blend: document.getElementById('watermark-blend').value,
                 avatar_position: document.getElementById('avatar-position').value
             };
             
@@ -780,6 +811,9 @@ DASHBOARD_HTML = '''
             const count = parseInt(document.getElementById('bulk-count').value || '10', 10);
             const upload_target = document.getElementById('upload-target').value;
             const watermark_mode = document.getElementById('watermark-mode').value;
+            const opacityRaw = document.getElementById('watermark-opacity').value;
+            const watermark_opacity = Math.max(0, Math.min(1, parseFloat(opacityRaw || '0.7')));
+            const watermark_blend = document.getElementById('watermark-blend').value;
             const avatar_position = document.getElementById('avatar-position').value;
             
             document.getElementById('loading').classList.add('show');
@@ -794,6 +828,8 @@ DASHBOARD_HTML = '''
                     count,
                     upload_target,
                     watermark_mode,
+                    watermark_opacity,
+                    watermark_blend,
                     avatar_position
                 })
             })
@@ -857,20 +893,30 @@ def generate():
     quote = data.get('quote')
     author = data.get('author')
     style = data.get('style', 'minimal')
-    topic = data.get('topic')
+    author_image = data.get('author_image', '')
+    topic = data.get('topic', '')
+    row = data.get('row')
     upload_target = data.get('upload_target', 'none')
     watermark_mode = data.get('watermark_mode', 'corner')
+    watermark_opacity = data.get('watermark_opacity')
+    watermark_blend = data.get('watermark_blend', 'normal')
     avatar_position = data.get('avatar_position', 'top-left')
-    row = data.get('row')
     
     try:
         # Generate image with enhanced options
+        try:
+            watermark_opacity = float(watermark_opacity) if watermark_opacity is not None else None
+        except Exception:
+            watermark_opacity = None
+
         image_path = image_gen.generate(
             quote,
             author,
             style,
             author_image=str(data.get('author_image') or ''),
             watermark_mode=str(watermark_mode or 'corner'),
+            watermark_opacity=watermark_opacity,
+            watermark_blend=str(watermark_blend or 'normal'),
             avatar_position=str(avatar_position or 'top-left')
         )
 
@@ -920,6 +966,8 @@ def generate_bulk():
     count = int(data.get('count', 10) or 10)
     upload_target = data.get('upload_target', 'none')
     watermark_mode = data.get('watermark_mode', 'corner')
+    watermark_opacity = data.get('watermark_opacity')
+    watermark_blend = data.get('watermark_blend', 'normal')
     avatar_position = data.get('avatar_position', 'top-left')
     
     if not topic:
@@ -946,6 +994,11 @@ def generate_bulk():
         generated_paths = []
         generated_urls = []
         
+        try:
+            watermark_opacity = float(watermark_opacity) if watermark_opacity is not None else None
+        except Exception:
+            watermark_opacity = None
+
         for q in selected_quotes:
             try:
                 p = image_gen.generate(
@@ -954,6 +1007,8 @@ def generate_bulk():
                     style,
                     author_image=str(q.get('author_image') or q.get('image') or ''),
                     watermark_mode=str(watermark_mode or 'corner'),
+                    watermark_opacity=watermark_opacity,
+                    watermark_blend=str(watermark_blend or 'normal'),
                     avatar_position=str(avatar_position or 'top-left')
                 )
                 generated_paths.append(p)

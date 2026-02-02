@@ -202,7 +202,15 @@ class QuoteImageGenerator:
 
         return lines
 
-    def add_watermark(self, image, opacity=0.7, style: str = '', mode: str = 'corner', color_match: bool = False):
+    def _pick_watermark_file(self, mode: str = 'corner', style: str = '') -> Path:
+        watermark_files = sorted(self.watermark_dir.glob('*.png'))
+        if not watermark_files:
+            return None
+        key = f"{str(mode or '').strip().lower()}|{str(style or '').strip().lower()}"
+        idx = abs(hash(key)) % len(watermark_files)
+        return watermark_files[idx]
+
+    def add_watermark(self, image, opacity=0.7, style: str = '', mode: str = 'corner', color_match: bool = False, blend_mode: str = 'normal'):
         """
         Add watermark with multiple modes
         
@@ -213,12 +221,11 @@ class QuoteImageGenerator:
             mode: 'corner', 'stripe', 'color-match', 'subtle'
             color_match: Whether to match watermark color to image
         """
-        watermark_files = list(self.watermark_dir.glob('*.png'))
-        if not watermark_files:
+        watermark_path = self._pick_watermark_file(mode=mode, style=style)
+        if not watermark_path:
             return image
 
         try:
-            watermark_path = watermark_files[0]
             watermark = Image.open(watermark_path).convert('RGBA')
 
             # Color-match mode
@@ -299,10 +306,23 @@ class QuoteImageGenerator:
                 base = Image.alpha_composite(base, layer_wm)
                 return base
 
-            # Standard watermark
+            # Standard watermark with optional blend
             wm_alpha = wm.split()[3]
             wm_alpha = wm_alpha.point(lambda p: int(p * opacity))
             wm.putalpha(wm_alpha)
+
+            if str(blend_mode).strip().lower() == 'multiply':
+                layer = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
+                layer.paste(wm, position, wm)
+                return ImageChops.multiply(base, layer)
+            if str(blend_mode).strip().lower() == 'screen':
+                layer = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
+                layer.paste(wm, position, wm)
+                return ImageChops.screen(base, layer)
+            if str(blend_mode).strip().lower() == 'overlay':
+                layer = Image.new('RGBA', (self.width, self.height), (0, 0, 0, 0))
+                layer.paste(wm, position, wm)
+                return ImageChops.overlay(base, layer)
 
             base.paste(wm, position, wm)
             return base
@@ -333,7 +353,7 @@ class QuoteImageGenerator:
         return tinted
 
     def generate(self, quote, author, style='minimal', add_watermark=True, author_image: str = '', 
-                 watermark_mode: str = 'corner', avatar_position: str = 'top-left'):
+                 watermark_mode: str = 'corner', watermark_opacity: float = None, watermark_blend: str = 'normal', avatar_position: str = 'top-left'):
         """Generate image and save"""
         style_func = self.styles.get(style, self.minimal_style)
         img = style_func(quote, author)
@@ -342,7 +362,8 @@ class QuoteImageGenerator:
         img = self.add_avatar(img, author_image, position=avatar_position)
         
         if add_watermark:
-            img = self.add_watermark(img, style=style, mode=watermark_mode)
+            op = 0.7 if watermark_opacity is None else float(watermark_opacity)
+            img = self.add_watermark(img, style=style, mode=watermark_mode, opacity=op, blend_mode=str(watermark_blend or 'normal'))
 
         filename = f"quote_{style}_{random.randint(10000, 99999)}.png"
         output_path = self.output_dir / filename
