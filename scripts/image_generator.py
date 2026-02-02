@@ -24,6 +24,9 @@ class QuoteImageGenerator:
 
         self._font_regular_path = None
         self._font_bold_path = None
+        self._fonts_map = {}
+        self._selected_font_regular_path = None
+        self._selected_font_bold_path = None
         self._init_custom_fonts()
 
         # Default image size
@@ -62,15 +65,47 @@ class QuoteImageGenerator:
         if not ttf_files:
             return
 
+        self._fonts_map = {p.stem: p for p in ttf_files}
+
         bold_candidates = [p for p in ttf_files if "bold" in p.stem.lower()]
         self._font_regular_path = ttf_files[0]
         self._font_bold_path = bold_candidates[0] if bold_candidates else ttf_files[0]
 
+        self._selected_font_regular_path = self._font_regular_path
+        self._selected_font_bold_path = self._font_bold_path
+
+    def get_available_fonts(self):
+        """Return list of available font names from assets/fonts (stems)."""
+        try:
+            return sorted(list(self._fonts_map.keys()))
+        except Exception:
+            return []
+
+    def set_font(self, font_name: str | None):
+        """Select a font by file stem (from assets/fonts).
+
+        If not found or empty, reverts to default custom font selection.
+        """
+        name = (font_name or '').strip()
+        if not name:
+            self._selected_font_regular_path = self._font_regular_path
+            self._selected_font_bold_path = self._font_bold_path
+            return
+
+        p = self._fonts_map.get(name)
+        if not p:
+            self._selected_font_regular_path = self._font_regular_path
+            self._selected_font_bold_path = self._font_bold_path
+            return
+
+        self._selected_font_regular_path = p
+        self._selected_font_bold_path = p
+
     def get_font(self, size, bold=False):
         """Get a font, falling back to default if custom fonts unavailable"""
         try:
-            if self._font_regular_path:
-                font_path = self._font_bold_path if bold else self._font_regular_path
+            if self._selected_font_regular_path:
+                font_path = self._selected_font_bold_path if bold else self._selected_font_regular_path
                 return ImageFont.truetype(str(font_path), size)
             if bold:
                 return ImageFont.truetype("arial.ttf", size)
@@ -353,24 +388,33 @@ class QuoteImageGenerator:
         return tinted
 
     def generate(self, quote, author, style='minimal', add_watermark=True, author_image: str = '', 
-                 watermark_mode: str = 'corner', watermark_opacity: float = None, watermark_blend: str = 'normal', avatar_position: str = 'top-left'):
+                 watermark_mode: str = 'corner', watermark_opacity: float = None, watermark_blend: str = 'normal', avatar_position: str = 'top-left', font_name: str = None):
         """Generate image and save"""
-        style_func = self.styles.get(style, self.minimal_style)
-        img = style_func(quote, author)
+        prev_regular = self._selected_font_regular_path
+        prev_bold = self._selected_font_bold_path
+        try:
+            if font_name is not None:
+                self.set_font(str(font_name))
 
-        # Always add avatar if available
-        img = self.add_avatar(img, author_image, position=avatar_position)
-        
-        if add_watermark:
-            op = 0.7 if watermark_opacity is None else float(watermark_opacity)
-            img = self.add_watermark(img, style=style, mode=watermark_mode, opacity=op, blend_mode=str(watermark_blend or 'normal'))
+            style_func = self.styles.get(style, self.minimal_style)
+            img = style_func(quote, author)
+            
+            # Always add avatar if available
+            img = self.add_avatar(img, author_image, position=avatar_position)
+            
+            if add_watermark:
+                op = 0.7 if watermark_opacity is None else float(watermark_opacity)
+                img = self.add_watermark(img, style=style, mode=watermark_mode, opacity=op, blend_mode=str(watermark_blend or 'normal'))
 
-        filename = f"quote_{style}_{random.randint(10000, 99999)}.png"
-        output_path = self.output_dir / filename
-        if img.mode != 'RGB':
-            img = img.convert('RGB')
-        img.save(output_path, format='PNG', quality=95)
-        return str(output_path)
+            filename = f"quote_{style}_{random.randint(10000, 99999)}.png"
+            output_path = self.output_dir / filename
+            if img.mode != 'RGB':
+                img = img.convert('RGB')
+            img.save(output_path, format='PNG', quality=95)
+            return str(output_path)
+        finally:
+            self._selected_font_regular_path = prev_regular
+            self._selected_font_bold_path = prev_bold
     
     # ============== ORIGINAL STYLES ==============
     

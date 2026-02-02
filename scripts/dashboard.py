@@ -485,12 +485,21 @@ DASHBOARD_HTML = '''
                 </select>
             </div>
             <div class="control-group">
+                <label for="font-select">🔤 Font</label>
+                <select id="font-select">
+                    <option value="">Default</option>
+                </select>
+            </div>
+            <div class="control-group">
                 <label for="upload-target">📝 Sheet Write-back</label>
                 <select id="upload-target">
                     <option value="none">Off</option>
                     <option value="sheet" selected>On</option>
                 </select>
             </div>
+        </div>
+
+        <div class="controls" style="margin-top: 10px;">
             <div class="control-group">
                 <label for="mode">🔧 Mode</label>
                 <select id="mode" onchange="toggleMode()">
@@ -498,6 +507,7 @@ DASHBOARD_HTML = '''
                     <option value="manual">Manual Input</option>
                 </select>
             </div>
+            <div class="control-group" style="grid-column: span 3;"></div>
         </div>
         
         <div class="quote-display" id="quote-display">
@@ -682,6 +692,21 @@ DASHBOARD_HTML = '''
                         select.appendChild(option);
                     });
                 });
+
+            fetch('/api/fonts')
+                .then(r => r.json())
+                .then(data => {
+                    const fonts = (data && data.fonts) ? data.fonts : [];
+                    const select = document.getElementById('font-select');
+                    if (!select) return;
+                    fonts.forEach(name => {
+                        const opt = document.createElement('option');
+                        opt.value = name;
+                        opt.textContent = name;
+                        select.appendChild(opt);
+                    });
+                })
+                .catch(() => {});
         };
 
         function toggleMode() {
@@ -754,6 +779,7 @@ DASHBOARD_HTML = '''
                 author: currentQuote.author,
                 author_image: currentQuote.author_image || currentQuote.image || '',
                 style: selectedStyle,
+                font_name: document.getElementById('font-select').value || null,
                 topic: document.getElementById('topic').value,
                 row: currentQuote._row || null,
                 upload_target: document.getElementById('upload-target').value,
@@ -810,6 +836,7 @@ DASHBOARD_HTML = '''
             
             const count = parseInt(document.getElementById('bulk-count').value || '10', 10);
             const upload_target = document.getElementById('upload-target').value;
+            const font_name = document.getElementById('font-select').value || null;
             const watermark_mode = document.getElementById('watermark-mode').value;
             const opacityRaw = document.getElementById('watermark-opacity').value;
             const watermark_opacity = Math.max(0, Math.min(1, parseFloat(opacityRaw || '0.7')));
@@ -827,6 +854,7 @@ DASHBOARD_HTML = '''
                     style: selectedStyle,
                     count,
                     upload_target,
+                    font_name,
                     watermark_mode,
                     watermark_opacity,
                     watermark_blend,
@@ -886,6 +914,15 @@ def get_quotes(topic):
     quotes = sheet_reader.get_quotes_by_topic(topic)
     return jsonify({'quotes': quotes})
 
+@app.route('/api/fonts')
+def get_fonts():
+    """Get available fonts from assets/fonts"""
+    try:
+        fonts = image_gen.get_available_fonts()
+    except Exception:
+        fonts = []
+    return jsonify({'fonts': fonts})
+
 @app.route('/api/remaining/<topic>')
 def get_remaining(topic):
     """Get remaining (not Done) counts for a topic and authors"""
@@ -909,6 +946,7 @@ def generate():
     watermark_opacity = data.get('watermark_opacity')
     watermark_blend = data.get('watermark_blend', 'normal')
     avatar_position = data.get('avatar_position', 'top-left')
+    font_name = data.get('font_name')
     
     try:
         # Generate image with enhanced options
@@ -925,7 +963,8 @@ def generate():
             watermark_mode=str(watermark_mode or 'corner'),
             watermark_opacity=watermark_opacity,
             watermark_blend=str(watermark_blend or 'normal'),
-            avatar_position=str(avatar_position or 'top-left')
+            avatar_position=str(avatar_position or 'top-left'),
+            font_name=str(font_name) if font_name else None
         )
 
         filename = Path(image_path).name
@@ -1017,7 +1056,8 @@ def generate_bulk():
                     watermark_mode=str(watermark_mode or 'corner'),
                     watermark_opacity=watermark_opacity,
                     watermark_blend=str(watermark_blend or 'normal'),
-                    avatar_position=str(avatar_position or 'top-left')
+                    avatar_position=str(avatar_position or 'top-left'),
+                    font_name=str(font_name) if font_name else None
                 )
                 generated_paths.append(p)
                 fn = Path(p).name
