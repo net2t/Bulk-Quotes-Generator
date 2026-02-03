@@ -3,7 +3,7 @@
 Enhanced Web Dashboard for Quote Image Generator
 - 16 design templates
 - Better UI organization
-- Watermark mode selector with color-match option
+- Watermark blend mode and sizing controls
 - Avatar position control
 """
 
@@ -490,24 +490,6 @@ DASHBOARD_HTML = '''
                     <option value="">Default</option>
                 </select>
             </div>
-            <div class="control-group">
-                <label for="upload-target">📝 Sheet Write-back</label>
-                <select id="upload-target">
-                    <option value="none">Off</option>
-                    <option value="sheet" selected>On</option>
-                </select>
-            </div>
-        </div>
-
-        <div class="controls" style="margin-top: 10px;">
-            <div class="control-group">
-                <label for="mode">🔧 Mode</label>
-                <select id="mode" onchange="toggleMode()">
-                    <option value="sheet" selected>Use Sheet</option>
-                    <option value="manual">Manual Input</option>
-                </select>
-            </div>
-            <div class="control-group" style="grid-column: span 3;"></div>
         </div>
         
         <div class="quote-display" id="quote-display">
@@ -531,23 +513,11 @@ DASHBOARD_HTML = '''
             <span class="new-badge">NEW</span>
         </div>
         
-        <div class="category-label">📱 Original Styles</div>
+        <div class="category-label">🎨 Styles</div>
         <div class="style-grid">
-            <div class="style-card" data-style="minimal" onclick="selectStyle('minimal')">
-                <div class="style-icon">⚪</div>
-                <div class="style-name">Minimal</div>
-            </div>
-            <div class="style-card selected" data-style="bright" onclick="selectStyle('bright')">
-                <div class="style-icon">🌈</div>
-                <div class="style-name">Bright</div>
-            </div>
-            <div class="style-card" data-style="elegant" onclick="selectStyle('elegant')">
+            <div class="style-card selected" data-style="elegant" onclick="selectStyle('elegant')">
                 <div class="style-icon">✨</div>
                 <div class="style-name">Elegant</div>
-            </div>
-            <div class="style-card" data-style="bold" onclick="selectStyle('bold')">
-                <div class="style-icon">⚡</div>
-                <div class="style-name">Bold</div>
             </div>
             <div class="style-card" data-style="modern" onclick="selectStyle('modern')">
                 <div class="style-icon">🔷</div>
@@ -557,37 +527,13 @@ DASHBOARD_HTML = '''
                 <div class="style-icon">🧿</div>
                 <div class="style-name">Neon</div>
             </div>
-        </div>
-        
-        <div class="category-label">🆕 New Enhanced Styles</div>
-        <div class="style-grid">
-            <div class="style-card" data-style="gradient_sunset" onclick="selectStyle('gradient_sunset')">
-                <div class="style-icon">🌅</div>
-                <div class="style-name">Gradient Sunset</div>
-            </div>
-            <div class="style-card" data-style="professional" onclick="selectStyle('professional')">
-                <div class="style-icon">💼</div>
-                <div class="style-name">Professional</div>
-            </div>
             <div class="style-card" data-style="vintage" onclick="selectStyle('vintage')">
                 <div class="style-icon">📜</div>
                 <div class="style-name">Vintage</div>
             </div>
-            <div class="style-card" data-style="nature" onclick="selectStyle('nature')">
-                <div class="style-icon">🌿</div>
-                <div class="style-name">Nature</div>
-            </div>
-            <div class="style-card" data-style="ocean" onclick="selectStyle('ocean')">
-                <div class="style-icon">🌊</div>
-                <div class="style-name">Ocean</div>
-            </div>
-            <div class="style-card" data-style="cosmic" onclick="selectStyle('cosmic')">
-                <div class="style-icon">🌌</div>
-                <div class="style-name">Cosmic</div>
-            </div>
             <div class="style-card" data-style="minimalist_dark" onclick="selectStyle('minimalist_dark')">
                 <div class="style-icon">🌑</div>
-                <div class="style-name">Dark Minimal</div>
+                <div class="style-name">Minimalist Dark</div>
             </div>
             <div class="style-card" data-style="creative_split" onclick="selectStyle('creative_split')">
                 <div class="style-icon">🎭</div>
@@ -605,20 +551,27 @@ DASHBOARD_HTML = '''
         
         <div class="settings-grid">
             <div class="settings-card">
-                <h3>💧 Watermark Mode</h3>
-                <select id="watermark-mode">
-                    <option value="corner" selected>Corner</option>
-                    <option value="stripe">Diagonal Stripe</option>
-                    <option value="color-match">Color Match</option>
-                    <option value="subtle">Subtle Center</option>
-                </select>
-                <div class="hint">Color Match adapts watermark to image colors</div>
+                <h3>� Quote Font Size</h3>
+                <input id="quote-font-size" type="number" min="20" max="120" value="52" />
+                <div class="hint">Increase/decrease quote text size</div>
+            </div>
+
+            <div class="settings-card">
+                <h3>👤 Author Size</h3>
+                <input id="author-font-size" type="number" min="14" max="80" value="30" />
+                <div class="hint">Increase/decrease author text size</div>
             </div>
 
             <div class="settings-card">
                 <h3>🫧 Watermark Opacity</h3>
                 <input id="watermark-opacity" type="number" min="0" max="1" step="0.05" value="0.70" />
                 <div class="hint">0 = hidden, 1 = solid</div>
+            </div>
+
+            <div class="settings-card">
+                <h3>🖼️ Watermark Size (%)</h3>
+                <input id="watermark-size" type="number" min="5" max="40" step="1" value="15" />
+                <div class="hint">15 = recommended</div>
             </div>
 
             <div class="settings-card">
@@ -673,10 +626,9 @@ DASHBOARD_HTML = '''
     </div>
     
     <script>
-        let selectedStyle = 'bright';
+        let selectedStyle = 'elegant';
         let allQuotes = {};
         let currentQuote = null;
-        let mode = 'sheet';
         
         window.onload = function() {
             fetch('/api/topics')
@@ -709,16 +661,6 @@ DASHBOARD_HTML = '''
                 .catch(() => {});
         };
 
-        function toggleMode() {
-            mode = document.getElementById('mode').value;
-            const bulkBtn = document.getElementById('bulk-btn');
-            if (mode === 'manual') {
-                bulkBtn.disabled = true;
-                document.getElementById('generate-btn').disabled = false;
-            } else {
-                document.getElementById('generate-btn').disabled = true;
-            }
-        }
         
         function loadQuotes() {
             const topic = document.getElementById('topic').value;
@@ -769,10 +711,19 @@ DASHBOARD_HTML = '''
         }
         
         function generateImage() {
-            if (mode === 'sheet' && !currentQuote) return;
+            if (!currentQuote) return;
 
             const opacityRaw = document.getElementById('watermark-opacity').value;
             const watermark_opacity = Math.max(0, Math.min(1, parseFloat(opacityRaw || '0.7')));
+
+            const qfsRaw = document.getElementById('quote-font-size').value;
+            const quote_font_size = parseInt(qfsRaw || '52', 10);
+
+            const afsRaw = document.getElementById('author-font-size').value;
+            const author_font_size = parseInt(afsRaw || '30', 10);
+
+            const wmsRaw = document.getElementById('watermark-size').value;
+            const watermark_size_percent = Math.max(0.05, Math.min(0.40, (parseFloat(wmsRaw || '15') / 100.0)));
 
             const payload = {
                 quote: currentQuote.quote,
@@ -780,10 +731,11 @@ DASHBOARD_HTML = '''
                 author_image: currentQuote.author_image || currentQuote.image || '',
                 style: selectedStyle,
                 font_name: document.getElementById('font-select').value || null,
+                quote_font_size,
+                author_font_size,
+                watermark_size_percent,
                 topic: document.getElementById('topic').value,
                 row: currentQuote._row || null,
-                upload_target: document.getElementById('upload-target').value,
-                watermark_mode: document.getElementById('watermark-mode').value,
                 watermark_opacity,
                 watermark_blend: document.getElementById('watermark-blend').value,
                 avatar_position: document.getElementById('avatar-position').value
@@ -835,13 +787,20 @@ DASHBOARD_HTML = '''
             }
             
             const count = parseInt(document.getElementById('bulk-count').value || '10', 10);
-            const upload_target = document.getElementById('upload-target').value;
             const font_name = document.getElementById('font-select').value || null;
-            const watermark_mode = document.getElementById('watermark-mode').value;
             const opacityRaw = document.getElementById('watermark-opacity').value;
             const watermark_opacity = Math.max(0, Math.min(1, parseFloat(opacityRaw || '0.7')));
             const watermark_blend = document.getElementById('watermark-blend').value;
             const avatar_position = document.getElementById('avatar-position').value;
+
+            const qfsRaw = document.getElementById('quote-font-size').value;
+            const quote_font_size = parseInt(qfsRaw || '52', 10);
+
+            const afsRaw = document.getElementById('author-font-size').value;
+            const author_font_size = parseInt(afsRaw || '30', 10);
+
+            const wmsRaw = document.getElementById('watermark-size').value;
+            const watermark_size_percent = Math.max(0.05, Math.min(0.40, (parseFloat(wmsRaw || '15') / 100.0)));
             
             document.getElementById('loading').classList.add('show');
             document.getElementById('result').classList.remove('show');
@@ -853,9 +812,10 @@ DASHBOARD_HTML = '''
                     topic,
                     style: selectedStyle,
                     count,
-                    upload_target,
                     font_name,
-                    watermark_mode,
+                    quote_font_size,
+                    author_font_size,
+                    watermark_size_percent,
                     watermark_opacity,
                     watermark_blend,
                     avatar_position
@@ -941,12 +901,13 @@ def generate():
     author_image = data.get('author_image', '')
     topic = data.get('topic', '')
     row = data.get('row')
-    upload_target = data.get('upload_target', 'none')
-    watermark_mode = data.get('watermark_mode', 'corner')
     watermark_opacity = data.get('watermark_opacity')
     watermark_blend = data.get('watermark_blend', 'normal')
     avatar_position = data.get('avatar_position', 'top-left')
     font_name = data.get('font_name')
+    quote_font_size = data.get('quote_font_size')
+    author_font_size = data.get('author_font_size')
+    watermark_size_percent = data.get('watermark_size_percent')
     
     try:
         # Generate image with enhanced options
@@ -960,11 +921,15 @@ def generate():
             author,
             style,
             author_image=str(data.get('author_image') or ''),
-            watermark_mode=str(watermark_mode or 'corner'),
+            watermark_mode='corner',
             watermark_opacity=watermark_opacity,
             watermark_blend=str(watermark_blend or 'normal'),
             avatar_position=str(avatar_position or 'top-left'),
-            font_name=str(font_name) if font_name else None
+            font_name=str(font_name) if font_name else None,
+            quote_font_size=int(quote_font_size) if quote_font_size is not None else None,
+            author_font_size=int(author_font_size) if author_font_size is not None else None,
+            watermark_size_percent=float(watermark_size_percent) if watermark_size_percent is not None else None,
+            watermark_position='bottom-right'
         )
 
         filename = Path(image_path).name
@@ -972,30 +937,28 @@ def generate():
         absolute_url = f"{request.host_url.rstrip('/')}{public_url}"
         
         upload_result = "Saved locally"
-        
-        if upload_target == 'sheet':
-            try:
-                write_value = absolute_url
-                if topic and row:
-                    ok = sheet_reader.write_back(str(topic), int(row), str(write_value))
-                    try:
-                        with Image.open(image_path) as im:
-                            dimensions = f"{im.width}x{im.height}"
-                    except Exception:
-                        dimensions = ""
-                    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                    sheet_reader.write_generation_meta(int(row), dimensions, ts)
-                    upload_result = "✅ Written to sheet" if ok else "❌ Sheet write failed"
-                else:
-                    upload_result = "Missing topic/row"
-            except Exception as e:
-                upload_result = f"Sheet error: {e}"
+
+        try:
+            write_value = absolute_url
+            if topic and row:
+                ok = sheet_reader.write_back(str(topic), int(row), str(write_value))
+                try:
+                    with Image.open(image_path) as im:
+                        dimensions = f"{im.width}x{im.height}"
+                except Exception:
+                    dimensions = ""
+                ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                sheet_reader.write_generation_meta(int(row), dimensions, ts)
+                upload_result = "✅ Written to sheet" if ok else "❌ Sheet write failed"
+            else:
+                upload_result = "Missing topic/row"
+        except Exception as e:
+            upload_result = f"Sheet error: {e}"
         
         return jsonify({
             'success': True,
             'image_path': image_path,
             'public_url': public_url,
-            'upload_target': upload_target,
             'upload_result': upload_result
         })
     except Exception as e:
@@ -1011,11 +974,13 @@ def generate_bulk():
     topic = data.get('topic')
     style = data.get('style', 'minimal')
     count = int(data.get('count', 10) or 10)
-    upload_target = data.get('upload_target', 'none')
-    watermark_mode = data.get('watermark_mode', 'corner')
+    font_name = data.get('font_name')
     watermark_opacity = data.get('watermark_opacity')
     watermark_blend = data.get('watermark_blend', 'normal')
     avatar_position = data.get('avatar_position', 'top-left')
+    quote_font_size = data.get('quote_font_size')
+    author_font_size = data.get('author_font_size')
+    watermark_size_percent = data.get('watermark_size_percent')
     
     if not topic:
         return jsonify({'success': False, 'error': 'Topic required'})
@@ -1053,11 +1018,15 @@ def generate_bulk():
                     q.get('author', 'Unknown'),
                     style,
                     author_image=str(q.get('author_image') or q.get('image') or ''),
-                    watermark_mode=str(watermark_mode or 'corner'),
+                    watermark_mode='corner',
                     watermark_opacity=watermark_opacity,
                     watermark_blend=str(watermark_blend or 'normal'),
                     avatar_position=str(avatar_position or 'top-left'),
-                    font_name=str(font_name) if font_name else None
+                    font_name=str(font_name) if font_name else None,
+                    quote_font_size=int(quote_font_size) if quote_font_size is not None else None,
+                    author_font_size=int(author_font_size) if author_font_size is not None else None,
+                    watermark_size_percent=float(watermark_size_percent) if watermark_size_percent is not None else None,
+                    watermark_position='bottom-right'
                 )
                 generated_paths.append(p)
                 fn = Path(p).name
@@ -1068,7 +1037,7 @@ def generate_bulk():
                 print(f"Error generating: {e}")
                 continue
 
-        if upload_target == 'sheet' and generated_paths:
+        if generated_paths:
             try:
                 for i, (q, u) in enumerate(zip(selected_quotes, generated_urls)):
                     write_value = u
@@ -1094,9 +1063,9 @@ if __name__ == '__main__':
     print("🚀 Enhanced Quote Image Generator Dashboard v2.0")
     print("="*60)
     print("\n✨ Features:")
-    print("   • 16 Professional Design Templates")
+    print("   • Curated design templates")
     print("   • Always Circular Author Images")
-    print("   • Smart Watermark Modes (Corner/Stripe/Color-Match/Subtle)")
+    print("   • Fixed bottom-right watermark + blend mode")
     print("   • Avatar Position Control")
     print("\n📱 Open your browser:")
     print("   http://localhost:8000\n")

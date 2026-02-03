@@ -33,23 +33,15 @@ class QuoteImageGenerator:
         self.width = 1080
         self.height = 1080
 
+        self.quote_font_size = 52
+        self.author_font_size = 30
+
         # Design styles - Enhanced with more options
         self.styles = {
-            # Original styles
-            'minimal': self.minimal_style,
-            'bright': self.bright_style,
             'elegant': self.elegant_style,
-            'bold': self.bold_style,
             'modern': self.modern_style,
             'neon': self.neon_style,
-            
-            # New enhanced styles
-            'gradient_sunset': self.gradient_sunset_style,
-            'professional': self.professional_style,
             'vintage': self.vintage_style,
-            'nature': self.nature_style,
-            'ocean': self.ocean_style,
-            'cosmic': self.cosmic_style,
             'minimalist_dark': self.minimalist_dark_style,
             'creative_split': self.creative_split_style,
             'geometric': self.geometric_style,
@@ -245,7 +237,7 @@ class QuoteImageGenerator:
         idx = abs(hash(key)) % len(watermark_files)
         return watermark_files[idx]
 
-    def add_watermark(self, image, opacity=0.7, style: str = '', mode: str = 'corner', color_match: bool = False, blend_mode: str = 'normal'):
+    def add_watermark(self, image, opacity=0.7, style: str = '', mode: str = 'corner', color_match: bool = False, blend_mode: str = 'normal', position: str = 'bottom-right', size_percent: float = 0.15):
         """
         Add watermark with multiple modes
         
@@ -300,24 +292,15 @@ class QuoteImageGenerator:
 
                 return Image.alpha_composite(base, tile)
 
-            # Subtle mode - centered, very transparent
-            if mode == 'subtle':
-                max_size = min(self.width, self.height) // 3
-                watermark.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-                position = (
-                    (self.width - watermark.width) // 2,
-                    (self.height - watermark.height) // 2
-                )
-                opacity = 0.15
+            max_size = max(32, int(min(self.width, self.height) * float(size_percent or 0.15)))
+            watermark.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
 
-            # Corner mode (default)
+            pad = 30
+            pos_key = str(position or 'bottom-right').strip().lower()
+            if pos_key == 'bottom-left':
+                position = (pad, self.height - watermark.height - pad)
             else:
-                max_size = min(self.width, self.height) // 5
-                watermark.thumbnail((max_size, max_size), Image.Resampling.LANCZOS)
-                position = (
-                    self.width - watermark.width - 30,
-                    self.height - watermark.height - 30
-                )
+                position = (self.width - watermark.width - pad, self.height - watermark.height - pad)
 
             base = image.convert('RGBA')
             wm = watermark.copy()
@@ -388,13 +371,25 @@ class QuoteImageGenerator:
         return tinted
 
     def generate(self, quote, author, style='minimal', add_watermark=True, author_image: str = '', 
-                 watermark_mode: str = 'corner', watermark_opacity: float = None, watermark_blend: str = 'normal', avatar_position: str = 'top-left', font_name: str = None):
+                 watermark_mode: str = 'corner', watermark_opacity: float = None, watermark_blend: str = 'normal', avatar_position: str = 'top-left', font_name: str = None,
+                 quote_font_size: int = None, author_font_size: int = None, watermark_size_percent: float = None, watermark_position: str = 'bottom-right'):
         """Generate image and save"""
         prev_regular = self._selected_font_regular_path
         prev_bold = self._selected_font_bold_path
         try:
             if font_name is not None:
                 self.set_font(str(font_name))
+
+            if quote_font_size is not None:
+                try:
+                    self.quote_font_size = int(quote_font_size)
+                except Exception:
+                    pass
+            if author_font_size is not None:
+                try:
+                    self.author_font_size = int(author_font_size)
+                except Exception:
+                    pass
 
             style_func = self.styles.get(style, self.minimal_style)
             img = style_func(quote, author)
@@ -404,7 +399,20 @@ class QuoteImageGenerator:
             
             if add_watermark:
                 op = 0.7 if watermark_opacity is None else float(watermark_opacity)
-                img = self.add_watermark(img, style=style, mode=watermark_mode, opacity=op, blend_mode=str(watermark_blend or 'normal'))
+                sp = watermark_size_percent
+                try:
+                    sp = float(sp) if sp is not None else None
+                except Exception:
+                    sp = None
+                img = self.add_watermark(
+                    img,
+                    style=style,
+                    mode=watermark_mode,
+                    opacity=op,
+                    blend_mode=str(watermark_blend or 'normal'),
+                    position=str(watermark_position or 'bottom-right'),
+                    size_percent=sp if sp is not None else 0.15
+                )
 
             filename = f"quote_{style}_{random.randint(10000, 99999)}.png"
             output_path = self.output_dir / filename
@@ -423,8 +431,8 @@ class QuoteImageGenerator:
         img = Image.new('RGB', (self.width, self.height), color='#FFFFFF')
         draw = ImageDraw.Draw(img)
         
-        quote_font = self.get_font(50)
-        author_font = self.get_font(30)
+        quote_font = self.get_font(self.quote_font_size)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 200)
         y = self.height // 2 - (len(lines) * 60) // 2
@@ -468,8 +476,8 @@ class QuoteImageGenerator:
             
             draw.rectangle([(0, y), (self.width, y+1)], fill=(r, g, b))
         
-        quote_font = self.get_font(55, bold=True)
-        author_font = self.get_font(32)
+        quote_font = self.get_font(self.quote_font_size, bold=True)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 200)
         y = self.height // 2 - (len(lines) * 65) // 2
@@ -512,8 +520,8 @@ class QuoteImageGenerator:
             width=1
         )
         
-        quote_font = self.get_font(48)
-        author_font = self.get_font(28)
+        quote_font = self.get_font(self.quote_font_size)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 280)
         y = self.height // 2 - (len(lines) * 58) // 2
@@ -541,8 +549,8 @@ class QuoteImageGenerator:
         img = Image.new('RGB', (self.width, self.height), color=bg_color)
         draw = ImageDraw.Draw(img)
         
-        quote_font = self.get_font(60, bold=True)
-        author_font = self.get_font(35, bold=True)
+        quote_font = self.get_font(self.quote_font_size, bold=True)
+        author_font = self.get_font(self.author_font_size, bold=True)
         
         lines = self.wrap_text(quote, quote_font, self.width - 180)
         y = self.height // 2 - (len(lines) * 70) // 2
@@ -572,8 +580,8 @@ class QuoteImageGenerator:
         accent = random.choice(accent_colors)
         draw.ellipse([(-100, -100), (300, 300)], fill=accent)
         
-        quote_font = self.get_font(52)
-        author_font = self.get_font(30)
+        quote_font = self.get_font(self.quote_font_size)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 220)
         y = self.height // 2 - (len(lines) * 62) // 2
@@ -620,8 +628,8 @@ class QuoteImageGenerator:
         img = Image.alpha_composite(img.convert('RGBA'), ring).convert('RGB')
         draw = ImageDraw.Draw(img)
 
-        quote_font = self.get_font(56, bold=True)
-        author_font = self.get_font(30)
+        quote_font = self.get_font(self.quote_font_size, bold=True)
+        author_font = self.get_font(self.author_font_size)
 
         def glow_text(x, y, text, font, glow_color, main_color):
             for dx, dy in [(-2, 0), (2, 0), (0, -2), (0, 2), (-2, -2), (2, 2), (-2, 2), (2, -2)]:
@@ -679,8 +687,8 @@ class QuoteImageGenerator:
             b = int(b1 + (b2 - b1) * t)
             draw.rectangle([(0, y), (self.width, y+1)], fill=(r, g, b))
         
-        quote_font = self.get_font(54, bold=True)
-        author_font = self.get_font(32)
+        quote_font = self.get_font(self.quote_font_size, bold=True)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 200)
         y = self.height // 2 - (len(lines) * 65) // 2
@@ -835,8 +843,8 @@ class QuoteImageGenerator:
         img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
         draw = ImageDraw.Draw(img)
         
-        quote_font = self.get_font(52, bold=True)
-        author_font = self.get_font(30)
+        quote_font = self.get_font(self.quote_font_size, bold=True)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 220)
         y = self.height // 2 - (len(lines) * 62) // 2
@@ -944,8 +952,8 @@ class QuoteImageGenerator:
         img = Image.alpha_composite(img.convert('RGBA'), overlay).convert('RGB')
         draw = ImageDraw.Draw(img)
         
-        quote_font = self.get_font(56, bold=True)
-        author_font = self.get_font(32)
+        quote_font = self.get_font(self.quote_font_size, bold=True)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 220)
         y = self.height // 2 - (len(lines) * 66) // 2
@@ -984,8 +992,8 @@ class QuoteImageGenerator:
         draw.line([(100, self.height//2 - 100), (self.width-100, self.height//2 - 100)], 
                   fill=accent, width=2)
         
-        quote_font = self.get_font(50)
-        author_font = self.get_font(28)
+        quote_font = self.get_font(self.quote_font_size)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 220)
         y = self.height // 2 - (len(lines) * 60) // 2
@@ -1090,8 +1098,8 @@ class QuoteImageGenerator:
         img = Image.alpha_composite(img.convert('RGBA'), shapes_overlay).convert('RGB')
         draw = ImageDraw.Draw(img)
         
-        quote_font = self.get_font(50, bold=True)
-        author_font = self.get_font(30)
+        quote_font = self.get_font(self.quote_font_size, bold=True)
+        author_font = self.get_font(self.author_font_size)
         
         lines = self.wrap_text(quote, quote_font, self.width - 220)
         y = self.height // 2 - (len(lines) * 60) // 2
