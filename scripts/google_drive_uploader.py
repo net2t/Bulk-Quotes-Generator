@@ -19,7 +19,7 @@ class DriveUploader:
     def connect(self):
         """Connect to Google Drive API"""
         try:
-            scopes = ['https://www.googleapis.com/auth/drive.file']
+            scopes = ['https://www.googleapis.com/auth/drive']
             creds = Credentials.from_service_account_file(
                 self.credentials_path,
                 scopes=scopes
@@ -122,8 +122,8 @@ class DriveUploader:
                 body={'type': 'anyone', 'role': 'reader'}
             ).execute()
             
-            # Return shareable link
-            return file.get('webViewLink')
+            # Return shareable link (prefer webViewLink)
+            return file.get('webViewLink') or file.get('webContentLink') or file.get('id')
             
         except Exception as e:
             print(f"Error uploading image: {e}")

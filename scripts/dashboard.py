@@ -14,6 +14,8 @@ import sys
 from pathlib import Path
 from datetime import datetime
 from PIL import Image
+import uuid
+import time
 
 # Add scripts directory to path if needed
 script_dir = Path(__file__).parent
@@ -32,6 +34,8 @@ app = Flask(__name__)
 sheet_reader = SheetReader()
 image_gen = QuoteImageGenerator()
 drive_uploader = DriveUploader()
+
+JOB_PROGRESS: dict[str, dict] = {}
 
 def load_config():
     try:
@@ -321,6 +325,41 @@ DASHBOARD_HTML = '''
             color: var(--muted);
             font-weight: 600;
         }
+
+        .quote-heading {
+            text-align: right;
+            color: rgba(241, 245, 255, 0.88);
+            font-weight: 800;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            margin-top: -6px;
+            margin-bottom: 10px;
+        }
+
+        .progress-wrap {
+            margin-top: 14px;
+            background: rgba(255, 255, 255, 0.06);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            height: 12px;
+            overflow: hidden;
+            display: none;
+        }
+
+        .progress-bar {
+            height: 100%;
+            width: 0%;
+            background: linear-gradient(90deg, rgba(20, 184, 166, 0.95), rgba(249, 115, 22, 0.92));
+            transition: width 250ms ease;
+        }
+
+        .progress-text {
+            margin-top: 10px;
+            font-size: 12px;
+            color: var(--muted);
+            display: none;
+        }
         
         .btn-generate {
             width: 100%;
@@ -505,6 +544,7 @@ DASHBOARD_HTML = '''
                 <div class="pill" id="meta-pill">Select a quote</div>
             </div>
             <p class="quote-text" id="current-quote">Select a topic and quote to get started...</p>
+            <div class="quote-heading" id="quote-heading"></div>
             <p class="quote-author" id="current-author"></p>
         </div>
         
@@ -603,6 +643,15 @@ DASHBOARD_HTML = '''
                     🚀 Generate Bulk
                 </button>
             </div>
+
+            <div class="settings-card">
+                <h3>☁️ Upload to Google Drive</h3>
+                <select id="upload-drive">
+                    <option value="off" selected>Off</option>
+                    <option value="on">On</option>
+                </select>
+                <div class="hint">Uploads PNG to Drive and returns share link</div>
+            </div>
         </div>
         
         <div style="margin-top: 20px; position: relative; z-index: 1;">
@@ -617,6 +666,8 @@ DASHBOARD_HTML = '''
         <div class="loading" id="loading">
             <div class="spinner"></div>
             <p>Creating your masterpiece with the selected design...</p>
+            <div class="progress-wrap" id="progress-wrap"><div class="progress-bar" id="progress-bar"></div></div>
+            <div class="progress-text" id="progress-text"></div>
         </div>
         
         <div class="result" id="result">
@@ -690,6 +741,7 @@ DASHBOARD_HTML = '''
                         currentQuote = allQuotes[idx];
                         document.getElementById('current-quote').textContent = `"${currentQuote.quote}"`;
                         document.getElementById('current-author').textContent = `— ${currentQuote.author}`;
+                        document.getElementById('quote-heading').textContent = (currentQuote.category || '').toString();
                         const a = (currentQuote.author || 'Unknown').toString();
                         const remaining = remainingByAuthor[a] || 0;
                         document.getElementById('meta-pill').textContent = `Remaining: ${remaining} (Topic remaining: ${remainingTotal})`;
@@ -738,45 +790,46 @@ DASHBOARD_HTML = '''
                 row: currentQuote._row || null,
                 watermark_opacity,
                 watermark_blend: document.getElementById('watermark-blend').value,
-                avatar_position: document.getElementById('avatar-position').value
+                avatar_position: document.getElementById('avatar-position').value,
+                upload_to_drive: (document.getElementById('upload-drive').value === 'on')
             };
             
             document.getElementById('loading').classList.add('show');
             document.getElementById('result').classList.remove('show');
             document.getElementById('generate-btn').disabled = true;
             
-            fetch('/api/generate', {
-                method: 'POST',
-                headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify(payload)
-            })
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('loading').classList.remove('show');
-                document.getElementById('generate-btn').disabled = false;
-                
-                if (!data.success) {
-                    alert('Error: ' + data.error);
-                    return;
-                }
+            startJob('single', payload)
+                .then(jobId => pollJob(jobId, (data) => {
+                    document.getElementById('loading').classList.remove('show');
+                    document.getElementById('generate-btn').disabled = false;
 
-                const resultDiv = document.getElementById('result');
-                const title = document.getElementById('result-title');
-                const messageP = document.getElementById('result-message');
+                    if (!data.success) {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                        return;
+                    }
 
-                title.textContent = '✅ Image Generated Successfully';
-                messageP.innerHTML = `
-                    📁 <strong>Saved to:</strong> ${data.image_path}<br>
-                    🎨 <strong>Style:</strong> ${selectedStyle}<br>
-                    ${data.upload_result ? '📤 <strong>Upload:</strong> ' + data.upload_result : ''}
-                `;
-                resultDiv.classList.add('show');
-            })
-            .catch(err => {
-                document.getElementById('loading').classList.remove('show');
-                document.getElementById('generate-btn').disabled = false;
-                alert('Error: ' + err);
-            });
+                    const resultDiv = document.getElementById('result');
+                    const title = document.getElementById('result-title');
+                    const messageP = document.getElementById('result-message');
+
+                    title.textContent = '✅ Image Generated Successfully';
+                    const driveOn = (document.getElementById('upload-drive').value === 'on');
+                    const driveHtml = data.drive_link
+                        ? `☁️ <strong>Drive:</strong> <a href="${data.drive_link}" target="_blank">Open</a><br>`
+                        : (driveOn ? `☁️ <strong>Drive:</strong> Failed (${(data.drive_error || 'no link')})<br>` : '');
+                    messageP.innerHTML = `
+                        📁 <strong>Saved to:</strong> ${data.image_path}<br>
+                        🎨 <strong>Style:</strong> ${selectedStyle}<br>
+                        ${driveHtml}
+                        ${data.upload_result ? '📝 <strong>Sheet:</strong> ' + data.upload_result : ''}
+                    `;
+                    resultDiv.classList.add('show');
+                }))
+                .catch(err => {
+                    document.getElementById('loading').classList.remove('show');
+                    document.getElementById('generate-btn').disabled = false;
+                    alert('Error: ' + err);
+                });
         }
         
         function generateBulk() {
@@ -804,51 +857,359 @@ DASHBOARD_HTML = '''
             
             document.getElementById('loading').classList.add('show');
             document.getElementById('result').classList.remove('show');
-            
-            fetch('/api/generate_bulk', {
+
+            const payload = {
+                topic,
+                style: selectedStyle,
+                count,
+                font_name,
+                quote_font_size,
+                author_font_size,
+                watermark_size_percent,
+                watermark_opacity,
+                watermark_blend,
+                avatar_position,
+                upload_to_drive: (document.getElementById('upload-drive').value === 'on')
+            };
+
+            startJob('bulk', payload)
+                .then(jobId => pollJob(jobId, (data) => {
+                    document.getElementById('loading').classList.remove('show');
+
+                    if (!data.success) {
+                        alert('Error: ' + (data.error || 'Unknown error'));
+                        return;
+                    }
+
+                    const resultDiv = document.getElementById('result');
+                    const messageP = document.getElementById('result-message');
+                    const driveCount = data.drive_links ? data.drive_links.length : 0;
+                    const driveOn = (document.getElementById('upload-drive').value === 'on');
+                    const driveHint = driveCount
+                        ? `☁️ Drive uploaded: ${driveCount}<br>`
+                        : (driveOn ? `☁️ Drive: Failed<br>` : '');
+                    messageP.innerHTML = `
+                        📦 <strong>Bulk Generation Complete!</strong><br>
+                        ✅ Generated: ${data.generated || 0} images<br>
+                        🎨 Style: ${selectedStyle}<br>
+                        ${driveHint}
+                        📁 Folder: Generated_Images/
+                    `;
+                    resultDiv.classList.add('show');
+                }))
+                .catch(err => {
+                    document.getElementById('loading').classList.remove('show');
+                    alert('Error: ' + err);
+                });
+        }
+
+        function startJob(kind, payload) {
+            return fetch('/api/job/start', {
                 method: 'POST',
                 headers: {'Content-Type': 'application/json'},
-                body: JSON.stringify({
-                    topic,
-                    style: selectedStyle,
-                    count,
-                    font_name,
-                    quote_font_size,
-                    author_font_size,
-                    watermark_size_percent,
-                    watermark_opacity,
-                    watermark_blend,
-                    avatar_position
-                })
-            })
-            .then(r => r.json())
-            .then(data => {
-                document.getElementById('loading').classList.remove('show');
-                
-                if (!data.success) {
-                    alert('Error: ' + data.error);
-                    return;
-                }
-                
-                const resultDiv = document.getElementById('result');
-                const messageP = document.getElementById('result-message');
-                messageP.innerHTML = `
-                    📦 <strong>Bulk Generation Complete!</strong><br>
-                    ✅ Generated: ${data.generated} images<br>
-                    🎨 Style: ${selectedStyle}<br>
-                    📁 Folder: Generated_Images/
-                `;
-                resultDiv.classList.add('show');
-            })
-            .catch(err => {
-                document.getElementById('loading').classList.remove('show');
-                alert('Error: ' + err);
+                body: JSON.stringify({ kind, payload })
+            }).then(r => r.json()).then(d => {
+                if (!d || !d.job_id) throw new Error('Could not start job');
+                return d.job_id;
             });
+        }
+
+        function pollJob(jobId, onDone) {
+            const wrap = document.getElementById('progress-wrap');
+            const bar = document.getElementById('progress-bar');
+            const txt = document.getElementById('progress-text');
+            wrap.style.display = 'block';
+            txt.style.display = 'block';
+            bar.style.width = '0%';
+            txt.textContent = 'Starting...';
+
+            const tick = () => {
+                fetch(`/api/job/status/${jobId}`)
+                    .then(r => r.json())
+                    .then(s => {
+                        const p = Math.max(0, Math.min(100, Math.round((s.progress || 0) * 100)));
+                        bar.style.width = `${p}%`;
+                        txt.textContent = s.message || '';
+                        if (s.status === 'done') {
+                            wrap.style.display = 'none';
+                            txt.style.display = 'none';
+                            onDone(s.result || {});
+                            return;
+                        }
+                        if (s.status === 'error') {
+                            wrap.style.display = 'none';
+                            txt.style.display = 'none';
+                            onDone({ success: false, error: s.error || 'Job failed' });
+                            return;
+                        }
+                        setTimeout(tick, 500);
+                    })
+                    .catch(() => setTimeout(tick, 800));
+            };
+            tick();
         }
     </script>
 </body>
 </html>
 '''
+
+@app.route('/api/job/start', methods=['POST'])
+def job_start():
+    data = request.json or {}
+    kind = str(data.get('kind') or '').strip().lower()
+    payload = data.get('payload') or {}
+    job_id = uuid.uuid4().hex
+    JOB_PROGRESS[job_id] = {
+        'status': 'running',
+        'progress': 0.0,
+        'message': 'Queued',
+        'result': None,
+        'error': None,
+        'kind': kind,
+        'started_at': time.time(),
+    }
+
+    try:
+        if kind == 'single':
+            JOB_PROGRESS[job_id]['message'] = 'Generating image...'
+            JOB_PROGRESS[job_id]['progress'] = 0.1
+            res = _run_single_generate(payload, job_id)
+            JOB_PROGRESS[job_id]['status'] = 'done'
+            JOB_PROGRESS[job_id]['progress'] = 1.0
+            JOB_PROGRESS[job_id]['message'] = 'Done'
+            JOB_PROGRESS[job_id]['result'] = res
+        elif kind == 'bulk':
+            JOB_PROGRESS[job_id]['message'] = 'Preparing bulk generation...'
+            JOB_PROGRESS[job_id]['progress'] = 0.05
+            res = _run_bulk_generate(payload, job_id)
+            JOB_PROGRESS[job_id]['status'] = 'done'
+            JOB_PROGRESS[job_id]['progress'] = 1.0
+            JOB_PROGRESS[job_id]['message'] = 'Done'
+            JOB_PROGRESS[job_id]['result'] = res
+        else:
+            JOB_PROGRESS[job_id]['status'] = 'error'
+            JOB_PROGRESS[job_id]['error'] = 'Unsupported job type'
+    except Exception as e:
+        JOB_PROGRESS[job_id]['status'] = 'error'
+        JOB_PROGRESS[job_id]['error'] = str(e)
+
+    return jsonify({'job_id': job_id})
+
+
+@app.route('/api/job/status/<job_id>')
+def job_status(job_id):
+    s = JOB_PROGRESS.get(job_id)
+    if not s:
+        return jsonify({'status': 'error', 'error': 'Unknown job'}), 404
+    return jsonify({
+        'status': s.get('status'),
+        'progress': s.get('progress', 0.0),
+        'message': s.get('message', ''),
+        'result': s.get('result'),
+        'error': s.get('error'),
+    })
+
+
+def _run_single_generate(data: dict, job_id: str) -> dict:
+    quote = data.get('quote')
+    author = data.get('author')
+    style = data.get('style', 'elegant')
+    topic = data.get('topic', '')
+    row = data.get('row')
+
+    watermark_opacity = data.get('watermark_opacity')
+    watermark_blend = data.get('watermark_blend', 'normal')
+    avatar_position = data.get('avatar_position', 'top-left')
+    font_name = data.get('font_name')
+    quote_font_size = data.get('quote_font_size')
+    author_font_size = data.get('author_font_size')
+    watermark_size_percent = data.get('watermark_size_percent')
+    upload_to_drive = bool(data.get('upload_to_drive'))
+
+    try:
+        watermark_opacity = float(watermark_opacity) if watermark_opacity is not None else None
+    except Exception:
+        watermark_opacity = None
+
+    JOB_PROGRESS[job_id]['progress'] = 0.25
+    JOB_PROGRESS[job_id]['message'] = 'Rendering...'
+    image_path = image_gen.generate(
+        quote,
+        author,
+        style,
+        author_image=str(data.get('author_image') or ''),
+        watermark_mode='corner',
+        watermark_opacity=watermark_opacity,
+        watermark_blend=str(watermark_blend or 'normal'),
+        avatar_position=str(avatar_position or 'top-left'),
+        font_name=str(font_name) if font_name else None,
+        quote_font_size=int(quote_font_size) if quote_font_size is not None else None,
+        author_font_size=int(author_font_size) if author_font_size is not None else None,
+        watermark_size_percent=float(watermark_size_percent) if watermark_size_percent is not None else None,
+        watermark_position='bottom-right'
+    )
+
+    filename = Path(image_path).name
+    public_url = f"/generated/{filename}"
+    absolute_url = f"{request.host_url.rstrip('/')}{public_url}"
+
+    JOB_PROGRESS[job_id]['progress'] = 0.65
+    JOB_PROGRESS[job_id]['message'] = 'Writing to sheet...'
+    upload_result = 'Saved locally'
+    try:
+        write_value = absolute_url
+        if topic and row:
+            ok = sheet_reader.write_back(str(topic), int(row), str(write_value))
+            try:
+                with Image.open(image_path) as im:
+                    dimensions = f"{im.width}x{im.height}"
+            except Exception:
+                dimensions = ""
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            sheet_reader.write_generation_meta(int(row), dimensions, ts)
+            upload_result = "✅ Written to sheet" if ok else "❌ Sheet write failed"
+        else:
+            upload_result = 'Missing topic/row'
+    except Exception as e:
+        upload_result = f"Sheet error: {e}"
+
+    drive_link = None
+    drive_error = None
+    if upload_to_drive:
+        JOB_PROGRESS[job_id]['progress'] = 0.82
+        JOB_PROGRESS[job_id]['message'] = 'Uploading to Google Drive...'
+        try:
+            drive_link = drive_uploader.upload_image(image_path, topic=topic)
+            if not drive_link:
+                drive_error = 'Drive upload returned no link'
+        except Exception as e:
+            drive_link = None
+            drive_error = str(e)
+            JOB_PROGRESS[job_id]['message'] = f"Drive upload failed: {e}"
+
+    JOB_PROGRESS[job_id]['progress'] = 0.95
+    JOB_PROGRESS[job_id]['message'] = 'Finalizing...'
+
+    return {
+        'success': True,
+        'image_path': image_path,
+        'public_url': public_url,
+        'upload_result': upload_result,
+        'drive_link': drive_link,
+        'drive_error': drive_error,
+    }
+
+
+def _run_bulk_generate(data: dict, job_id: str) -> dict:
+    topic = data.get('topic')
+    style = data.get('style', 'elegant')
+    count = int(data.get('count', 10) or 10)
+    font_name = data.get('font_name')
+    watermark_opacity = data.get('watermark_opacity')
+    watermark_blend = data.get('watermark_blend', 'normal')
+    avatar_position = data.get('avatar_position', 'top-left')
+    quote_font_size = data.get('quote_font_size')
+    author_font_size = data.get('author_font_size')
+    watermark_size_percent = data.get('watermark_size_percent')
+    upload_to_drive = bool(data.get('upload_to_drive'))
+
+    if not topic:
+        return {'success': False, 'error': 'Topic required'}
+    if count < 1:
+        return {'success': False, 'error': 'Count must be >= 1'}
+
+    if not sheet_reader.spreadsheet:
+        if not sheet_reader.connect():
+            return {'success': False, 'error': 'Failed to connect to sheets'}
+
+    quotes = sheet_reader.get_quotes_by_topic(topic)
+    if not quotes:
+        return {'success': False, 'error': f'No quotes for topic: {topic}'}
+
+    import random
+    if count >= len(quotes):
+        random.shuffle(quotes)
+        selected_quotes = quotes
+    else:
+        selected_quotes = random.sample(quotes, count)
+
+    try:
+        watermark_opacity = float(watermark_opacity) if watermark_opacity is not None else None
+    except Exception:
+        watermark_opacity = None
+
+    generated_paths = []
+    generated_urls = []
+
+    total = max(1, len(selected_quotes))
+    JOB_PROGRESS[job_id]['message'] = f'Generating 0/{total}...'
+    JOB_PROGRESS[job_id]['progress'] = 0.10
+
+    for i, q in enumerate(selected_quotes, start=1):
+        JOB_PROGRESS[job_id]['message'] = f'Generating {i}/{total}...'
+        JOB_PROGRESS[job_id]['progress'] = 0.10 + (0.65 * (i / total))
+        try:
+            p = image_gen.generate(
+                q.get('quote', ''),
+                q.get('author', 'Unknown'),
+                style,
+                author_image=str(q.get('author_image') or q.get('image') or ''),
+                watermark_mode='corner',
+                watermark_opacity=watermark_opacity,
+                watermark_blend=str(watermark_blend or 'normal'),
+                avatar_position=str(avatar_position or 'top-left'),
+                font_name=str(font_name) if font_name else None,
+                quote_font_size=int(quote_font_size) if quote_font_size is not None else None,
+                author_font_size=int(author_font_size) if author_font_size is not None else None,
+                watermark_size_percent=float(watermark_size_percent) if watermark_size_percent is not None else None,
+                watermark_position='bottom-right'
+            )
+            generated_paths.append(p)
+            fn = Path(p).name
+            pu = f"/generated/{fn}"
+            au = f"{request.host_url.rstrip('/')}{pu}"
+            generated_urls.append(au)
+        except Exception as e:
+            print(f"Error generating: {e}")
+            continue
+
+    JOB_PROGRESS[job_id]['message'] = 'Writing to sheet...'
+    JOB_PROGRESS[job_id]['progress'] = 0.80
+    if generated_paths:
+        try:
+            for i, (q, u) in enumerate(zip(selected_quotes, generated_urls)):
+                write_value = u
+                if q.get('_row'):
+                    sheet_reader.write_back(str(topic), int(q.get('_row')), str(write_value))
+                    try:
+                        p = generated_paths[i]
+                        with Image.open(p) as im:
+                            dimensions = f"{im.width}x{im.height}"
+                    except Exception:
+                        dimensions = ""
+                    ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                    sheet_reader.write_generation_meta(int(q.get('_row')), dimensions, ts)
+        except Exception as e:
+            print(f"Sheet write error: {e}")
+
+    drive_links = []
+    if upload_to_drive and generated_paths:
+        JOB_PROGRESS[job_id]['message'] = 'Uploading to Google Drive...'
+        JOB_PROGRESS[job_id]['progress'] = 0.88
+        try:
+            drive_links = drive_uploader.batch_upload(generated_paths, topic=topic)
+        except Exception as e:
+            print(f"Drive upload error: {e}")
+            drive_links = []
+
+    JOB_PROGRESS[job_id]['message'] = 'Finalizing...'
+    JOB_PROGRESS[job_id]['progress'] = 0.95
+
+    return {
+        'success': True,
+        'generated': len(generated_paths),
+        'drive_links': drive_links,
+    }
 
 @app.route('/generated/<filename>')
 def generated(filename):
@@ -890,173 +1251,6 @@ def get_remaining(topic):
         sheet_reader.connect()
     counts = sheet_reader.get_remaining_counts(topic)
     return jsonify(counts)
-
-@app.route('/api/generate', methods=['POST'])
-def generate():
-    """Generate single image"""
-    data = request.json
-    quote = data.get('quote')
-    author = data.get('author')
-    style = data.get('style', 'minimal')
-    author_image = data.get('author_image', '')
-    topic = data.get('topic', '')
-    row = data.get('row')
-    watermark_opacity = data.get('watermark_opacity')
-    watermark_blend = data.get('watermark_blend', 'normal')
-    avatar_position = data.get('avatar_position', 'top-left')
-    font_name = data.get('font_name')
-    quote_font_size = data.get('quote_font_size')
-    author_font_size = data.get('author_font_size')
-    watermark_size_percent = data.get('watermark_size_percent')
-    
-    try:
-        # Generate image with enhanced options
-        try:
-            watermark_opacity = float(watermark_opacity) if watermark_opacity is not None else None
-        except Exception:
-            watermark_opacity = None
-
-        image_path = image_gen.generate(
-            quote,
-            author,
-            style,
-            author_image=str(data.get('author_image') or ''),
-            watermark_mode='corner',
-            watermark_opacity=watermark_opacity,
-            watermark_blend=str(watermark_blend or 'normal'),
-            avatar_position=str(avatar_position or 'top-left'),
-            font_name=str(font_name) if font_name else None,
-            quote_font_size=int(quote_font_size) if quote_font_size is not None else None,
-            author_font_size=int(author_font_size) if author_font_size is not None else None,
-            watermark_size_percent=float(watermark_size_percent) if watermark_size_percent is not None else None,
-            watermark_position='bottom-right'
-        )
-
-        filename = Path(image_path).name
-        public_url = f"/generated/{filename}"
-        absolute_url = f"{request.host_url.rstrip('/')}{public_url}"
-        
-        upload_result = "Saved locally"
-
-        try:
-            write_value = absolute_url
-            if topic and row:
-                ok = sheet_reader.write_back(str(topic), int(row), str(write_value))
-                try:
-                    with Image.open(image_path) as im:
-                        dimensions = f"{im.width}x{im.height}"
-                except Exception:
-                    dimensions = ""
-                ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                sheet_reader.write_generation_meta(int(row), dimensions, ts)
-                upload_result = "✅ Written to sheet" if ok else "❌ Sheet write failed"
-            else:
-                upload_result = "Missing topic/row"
-        except Exception as e:
-            upload_result = f"Sheet error: {e}"
-        
-        return jsonify({
-            'success': True,
-            'image_path': image_path,
-            'public_url': public_url,
-            'upload_result': upload_result
-        })
-    except Exception as e:
-        return jsonify({
-            'success': False,
-            'error': str(e)
-        })
-
-@app.route('/api/generate_bulk', methods=['POST'])
-def generate_bulk():
-    """Bulk generation"""
-    data = request.json
-    topic = data.get('topic')
-    style = data.get('style', 'minimal')
-    count = int(data.get('count', 10) or 10)
-    font_name = data.get('font_name')
-    watermark_opacity = data.get('watermark_opacity')
-    watermark_blend = data.get('watermark_blend', 'normal')
-    avatar_position = data.get('avatar_position', 'top-left')
-    quote_font_size = data.get('quote_font_size')
-    author_font_size = data.get('author_font_size')
-    watermark_size_percent = data.get('watermark_size_percent')
-    
-    if not topic:
-        return jsonify({'success': False, 'error': 'Topic required'})
-    if count < 1:
-        return jsonify({'success': False, 'error': 'Count must be >= 1'})
-    
-    try:
-        if not sheet_reader.spreadsheet:
-            if not sheet_reader.connect():
-                return jsonify({'success': False, 'error': 'Failed to connect to sheets'})
-        
-        quotes = sheet_reader.get_quotes_by_topic(topic)
-        if not quotes:
-            return jsonify({'success': False, 'error': f'No quotes for topic: {topic}'})
-        
-        import random
-        if count >= len(quotes):
-            random.shuffle(quotes)
-            selected_quotes = quotes
-        else:
-            selected_quotes = random.sample(quotes, count)
-        
-        generated_paths = []
-        generated_urls = []
-        
-        try:
-            watermark_opacity = float(watermark_opacity) if watermark_opacity is not None else None
-        except Exception:
-            watermark_opacity = None
-
-        for q in selected_quotes:
-            try:
-                p = image_gen.generate(
-                    q.get('quote', ''),
-                    q.get('author', 'Unknown'),
-                    style,
-                    author_image=str(q.get('author_image') or q.get('image') or ''),
-                    watermark_mode='corner',
-                    watermark_opacity=watermark_opacity,
-                    watermark_blend=str(watermark_blend or 'normal'),
-                    avatar_position=str(avatar_position or 'top-left'),
-                    font_name=str(font_name) if font_name else None,
-                    quote_font_size=int(quote_font_size) if quote_font_size is not None else None,
-                    author_font_size=int(author_font_size) if author_font_size is not None else None,
-                    watermark_size_percent=float(watermark_size_percent) if watermark_size_percent is not None else None,
-                    watermark_position='bottom-right'
-                )
-                generated_paths.append(p)
-                fn = Path(p).name
-                pu = f"/generated/{fn}"
-                au = f"{request.host_url.rstrip('/')}{pu}"
-                generated_urls.append(au)
-            except Exception as e:
-                print(f"Error generating: {e}")
-                continue
-
-        if generated_paths:
-            try:
-                for i, (q, u) in enumerate(zip(selected_quotes, generated_urls)):
-                    write_value = u
-                    if q.get('_row'):
-                        sheet_reader.write_back(str(topic), int(q.get('_row')), str(write_value))
-                        try:
-                            p = generated_paths[i]
-                            with Image.open(p) as im:
-                                dimensions = f"{im.width}x{im.height}"
-                        except Exception:
-                            dimensions = ""
-                        ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-                        sheet_reader.write_generation_meta(int(q.get('_row')), dimensions, ts)
-            except Exception as e:
-                print(f"Sheet write error: {e}")
-        
-        return jsonify({'success': True, 'generated': len(generated_paths)})
-    except Exception as e:
-        return jsonify({'success': False, 'error': str(e)})
 
 if __name__ == '__main__':
     print("\n" + "="*60)
