@@ -27,6 +27,7 @@ if script_dir.name != 'scripts':
 from sheet_reader import SheetReader
 from image_generator import QuoteImageGenerator  # Will use enhanced version
 from google_drive_uploader import DriveUploader
+from app_version import APP_VERSION
 
 app = Flask(__name__)
 
@@ -503,7 +504,7 @@ DASHBOARD_HTML = '''
 <body>
     <div class="container">
         <div class="topbar">
-            <div class="badge">✨ Enhanced Quote Generator v2.0</div>
+            <div class="badge">✨ Enhanced Quote Generator v{{ app_version }}</div>
             <div class="badge" id="sheet-status">🔌 Connecting...</div>
         </div>
         
@@ -652,6 +653,26 @@ DASHBOARD_HTML = '''
                 </select>
                 <div class="hint">Uploads PNG to Drive and returns share link</div>
             </div>
+
+            <div class="settings-card">
+                <h3>🖼️ Background Mode</h3>
+                <select id="background-mode">
+                    <option value="none" selected>None</option>
+                    <option value="custom">Custom (Random)</option>
+                    <option value="ai">AI (Hugging Face)</option>
+                </select>
+                <div class="hint">Custom uses assets/custom_backgrounds. AI requires HUGGINGFACE_API_KEY.</div>
+            </div>
+
+            <div class="settings-card">
+                <h3>🤖 AI Model</h3>
+                <select id="ai-model">
+                    <option value="stable_diffusion" selected>Stable Diffusion 2.1</option>
+                    <option value="openjourney">OpenJourney</option>
+                    <option value="realistic">Realistic Vision</option>
+                </select>
+                <div class="hint">Used only when Background Mode = AI</div>
+            </div>
         </div>
         
         <div style="margin-top: 20px; position: relative; z-index: 1;">
@@ -791,7 +812,9 @@ DASHBOARD_HTML = '''
                 watermark_opacity,
                 watermark_blend: document.getElementById('watermark-blend').value,
                 avatar_position: document.getElementById('avatar-position').value,
-                upload_to_drive: (document.getElementById('upload-drive').value === 'on')
+                upload_to_drive: (document.getElementById('upload-drive').value === 'on'),
+                background_mode: document.getElementById('background-mode').value,
+                ai_model: document.getElementById('ai-model').value
             };
             
             document.getElementById('loading').classList.add('show');
@@ -869,7 +892,9 @@ DASHBOARD_HTML = '''
                 watermark_opacity,
                 watermark_blend,
                 avatar_position,
-                upload_to_drive: (document.getElementById('upload-drive').value === 'on')
+                upload_to_drive: (document.getElementById('upload-drive').value === 'on'),
+                background_mode: document.getElementById('background-mode').value,
+                ai_model: document.getElementById('ai-model').value
             };
 
             startJob('bulk', payload)
@@ -1025,6 +1050,8 @@ def _run_single_generate(data: dict, job_id: str) -> dict:
     author_font_size = data.get('author_font_size')
     watermark_size_percent = data.get('watermark_size_percent')
     upload_to_drive = bool(data.get('upload_to_drive'))
+    background_mode = str(data.get('background_mode') or 'none')
+    ai_model = str(data.get('ai_model') or '') or None
 
     try:
         watermark_opacity = float(watermark_opacity) if watermark_opacity is not None else None
@@ -1047,7 +1074,9 @@ def _run_single_generate(data: dict, job_id: str) -> dict:
         quote_font_size=int(quote_font_size) if quote_font_size is not None else None,
         author_font_size=int(author_font_size) if author_font_size is not None else None,
         watermark_size_percent=float(watermark_size_percent) if watermark_size_percent is not None else None,
-        watermark_position='bottom-right'
+        watermark_position='bottom-right',
+        background_mode=str(data.get('background_mode') or 'none'),
+        ai_model=str(data.get('ai_model') or '') or None
     )
 
     filename = Path(image_path).name
@@ -1164,7 +1193,9 @@ def _run_bulk_generate(data: dict, job_id: str) -> dict:
                 quote_font_size=int(quote_font_size) if quote_font_size is not None else None,
                 author_font_size=int(author_font_size) if author_font_size is not None else None,
                 watermark_size_percent=float(watermark_size_percent) if watermark_size_percent is not None else None,
-                watermark_position='bottom-right'
+                watermark_position='bottom-right',
+                background_mode=background_mode,
+                ai_model=ai_model
             )
             generated_paths.append(p)
             fn = Path(p).name
@@ -1221,7 +1252,7 @@ def generated(filename):
 @app.route('/')
 def index():
     """Main dashboard"""
-    return render_template_string(DASHBOARD_HTML)
+    return render_template_string(DASHBOARD_HTML, app_version=APP_VERSION)
 
 @app.route('/api/topics')
 def get_topics():
@@ -1256,7 +1287,7 @@ def get_remaining(topic):
 
 if __name__ == '__main__':
     print("\n" + "="*60)
-    print("🚀 Enhanced Quote Image Generator Dashboard v2.0")
+    print(f"🚀 Enhanced Quote Image Generator Dashboard v{APP_VERSION}")
     print("="*60)
     print("\n✨ Features:")
     print("   • Curated design templates")

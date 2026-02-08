@@ -104,6 +104,10 @@ class SheetReader:
             print(f"Error fetching topics: {e}")
             return []
 
+    def get_all_topics(self):
+        """Backward-compatible alias used by scripts/dashboard.py"""
+        return self.get_topics()
+
     def get_quotes(self, topic):
         """Get all quotes for a specific topic from CATEGORY column"""
         if not self.spreadsheet:
@@ -177,6 +181,10 @@ class SheetReader:
             print(f"Error fetching quotes for {topic}: {e}")
             return []
 
+    def get_quotes_by_topic(self, topic: str):
+        """Backward-compatible alias used by scripts/dashboard.py"""
+        return self.get_quotes(topic)
+
     def get_remaining_quotes(self, topic):
         """Return remaining (not Done) counts for the given topic"""
         if not self.spreadsheet:
@@ -194,7 +202,6 @@ class SheetReader:
 
             sheet_cfg = self.config.get("google_sheets") or {}
             done_value = str(sheet_cfg.get("status_done_value", "Done")).strip().lower()
-            skip_value = str(sheet_cfg.get("status_skip_value", "Skip")).strip()
             max_len = sheet_cfg.get("max_length")
             english_only = bool(sheet_cfg.get("english_only"))
 
@@ -216,10 +223,6 @@ class SheetReader:
                 if str(cat).strip() != str(topic).strip():
                     continue
 
-                a = _get_any(record, 'AUTHOR', 'Author', 'author', default='Unknown')
-                a = str(a).strip() or 'Unknown'
-
-                # Apply same filters as get_quotes so counts reflect what can be generated
                 length_val = _get_any(record, 'LENGTH', 'Length', 'length', default=None)
                 try:
                     length_num = int(length_val) if length_val not in (None, "") else None
@@ -234,6 +237,9 @@ class SheetReader:
                 if english_only and not _is_english(str(quote_text)):
                     continue
 
+                a = _get_any(record, 'AUTHOR', 'Author', 'author', default='Unknown')
+                a = str(a).strip() or 'Unknown'
+
                 topic_total += 1
                 authors[a] = int(authors.get(a, 0)) + 1
 
@@ -242,6 +248,10 @@ class SheetReader:
             print(f"Error computing remaining counts: {e}")
             return {"topic_total": 0, "authors": {}}
 
+    def get_remaining_counts(self, topic: str) -> dict:
+        """Backward-compatible alias used by scripts/dashboard.py"""
+        return self.get_remaining_quotes(topic)
+
     def mark_as_generated(self, topic: str, row: int, image_path: str) -> str:
         """Mark quote as generated and update sheet"""
         if not self.spreadsheet:
@@ -249,24 +259,36 @@ class SheetReader:
 
         try:
             worksheet = self.spreadsheet.worksheet(self._get_database_worksheet_name())
-            
-            # Update PREVIEW_LINK column (column 11)
-            worksheet.update_cell(row, 11, f'=HYPERLINK("{image_path}","Preview Image")')
-            
-            # Update STATUS column (column 12) to "Done"
-            worksheet.update_cell(row, 12, "Done")
-            
-            # Update DIMENSIONS column (column 13)
-            worksheet.update_cell(row, 13, "1080x1080")
-            
-            # Update GENERATED_AT column (column 14)
-            from datetime import datetime
-            timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-            worksheet.update_cell(row, 14, timestamp)
-            
+
+            worksheet.update_cell(int(row), 11, f'=HYPERLINK("{image_path}","Preview Image")')
+            worksheet.update_cell(int(row), 12, "Done")
+            worksheet.update_cell(int(row), 13, "1080x1080")
+            ts = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+            worksheet.update_cell(int(row), 14, ts)
+
             return f"Successfully updated row {row}"
         except Exception as e:
             return f"Error updating sheet: {e}"
+
+    def write_back(self, topic: str, row: int, image_url: str) -> bool:
+        """Write preview link + mark Done (compat for dashboard)."""
+        res = self.mark_as_generated(topic=topic, row=row, image_path=image_url)
+        return str(res).lower().startswith("successfully")
+
+    def write_generation_meta(self, row: int, dimensions: str, timestamp: str) -> bool:
+        """Write DIMENSIONS + GENERATED_AT (compat for dashboard)."""
+        if not self.spreadsheet:
+            return False
+        try:
+            worksheet = self.spreadsheet.worksheet(self._get_database_worksheet_name())
+            if dimensions is not None:
+                worksheet.update_cell(int(row), 13, str(dimensions))
+            if timestamp is not None:
+                worksheet.update_cell(int(row), 14, str(timestamp))
+            return True
+        except Exception as e:
+            print(f"Error writing generation meta: {e}")
+            return False
 
 # Standalone function for easy import
 def fetch_quotes(topic, credentials_path="credentials.json"):

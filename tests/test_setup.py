@@ -9,11 +9,13 @@ from pathlib import Path
 def test_setup():
     print("🧪 Testing Bulk Quotes Image Generator Setup")
     print("=" * 50)
+
+    root_dir = Path(__file__).resolve().parent.parent
     
     # Test imports
     print("\n📦 Testing imports...")
     try:
-        sys.path.insert(0, str(Path(__file__).parent / 'scripts'))
+        sys.path.insert(0, str(root_dir / 'scripts'))
         
         from sheet_reader import SheetReader
         print("✅ SheetReader imported successfully")
@@ -31,38 +33,51 @@ def test_setup():
     # Test file structure
     print("\n📁 Testing file structure...")
     required_dirs = [
-        'scripts',
-        'assets/fonts',
-        'assets/ai_backgrounds', 
-        'assets/custom_backgrounds',
-        'Watermarks',
-        'Generated_Images',
-        'references'
+        root_dir / 'scripts',
+        root_dir / 'assets' / 'fonts',
+        root_dir / 'assets' / 'ai_backgrounds',
+        root_dir / 'assets' / 'custom_backgrounds',
+        root_dir / 'Watermarks',
+        root_dir / 'Generated_Images',
+        root_dir / 'references'
     ]
     
     for dir_path in required_dirs:
         if Path(dir_path).exists():
-            print(f"✅ {dir_path}/ exists")
+            rel = Path(dir_path).relative_to(root_dir)
+            print(f"✅ {rel}/ exists")
         else:
-            print(f"❌ {dir_path}/ missing")
+            rel = Path(dir_path)
+            try:
+                rel = rel.relative_to(root_dir)
+            except Exception:
+                pass
+            print(f"❌ {rel}/ missing")
     
     # Test files
     required_files = [
-        'credentials.json',
-        'references/config.json',
-        'requirements.txt',
-        'README.md'
+        root_dir / 'credentials.json',
+        root_dir / 'references' / 'config.json',
+        root_dir / 'requirements.txt',
+        root_dir / 'README.md'
     ]
     
     for file_path in required_files:
         if Path(file_path).exists():
-            print(f"✅ {file_path} exists")
+            rel = Path(file_path).relative_to(root_dir)
+            print(f"✅ {rel} exists")
         else:
-            print(f"❌ {file_path} missing")
+            rel = Path(file_path)
+            try:
+                rel = rel.relative_to(root_dir)
+            except Exception:
+                pass
+            print(f"❌ {rel} missing")
     
     # Test fonts
     print("\n🔤 Testing fonts...")
-    font_dir = Path('assets/fonts')
+    font_dir = root_dir / 'assets' / 'fonts'
+    
     if font_dir.exists():
         fonts = list(font_dir.glob('*.ttf'))
         print(f"✅ Found {len(fonts)} font files:")
@@ -75,6 +90,7 @@ def test_setup():
     print("\n🔗 Testing Google Sheets connection...")
     try:
         reader = SheetReader()
+        
         if reader.connect():
             print("✅ Connected to Google Sheets successfully")
             

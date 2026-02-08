@@ -1,17 +1,19 @@
-# 🎨 Bulk Quotes Image Generator
+# Bulk Quotes Image Generator
 
 A powerful Python application for generating beautiful quote images in bulk with 16 professional design templates. Features smart filename formatting, Google Sheets integration, and Google Drive upload capabilities.
 
-## ✨ Features
+Current version: **1.100.1.1**
 
-### 🎯 Core Features
+## Features
+
+### Core Features
 - **16 Professional Design Templates** - From elegant to modern, neon to vintage
 - **Smart Filename Format** - `<Category> - <Quote> - <Author> - <DD-MM-YYYY_HHMM>.png`
 - **Google Sheets Integration** - Connects to your Database worksheet
 - **Bulk Generation** - Generate multiple images at once
 - **Google Drive Upload** - Automatic upload with shareable links
 
-### 🎨 Design Templates
+### Design Templates
 1. **Elegant** - Sophisticated with gradient backgrounds
 2. **Modern** - Bold colors with accent bars
 3. **Neon** - Glowing text effects
@@ -29,14 +31,14 @@ A powerful Python application for generating beautiful quote images in bulk with
 15. **Handwritten** - Personal notebook style
 16. **Minimal** - Clean and simple
 
-### 🔧 Customization Options
+### Customization Options
 - **Font Selection** - Multiple font options
 - **Font Size Control** - Adjustable quote and author text sizes
 - **Watermark Controls** - Opacity, size, blend modes, positioning
 - **Avatar Support** - Circular author images with positioning
-- **Background Options** - Custom and AI-generated backgrounds
+- **Background Options** - None / Custom (random) / AI-generated backgrounds
 
-## 📋 Requirements
+## Requirements
 
 ### Python Packages
 ```bash
@@ -48,7 +50,7 @@ pip install flask gspread google-auth google-auth-oauthlib google-auth-httplib2 
 - Google Service Account credentials
 - Access to Google Sheets (Database worksheet)
 
-## 🚀 Quick Start
+## Quick Start
 
 ### 1. Setup Google Sheets
 1. Open your Database sheet: https://docs.google.com/spreadsheets/d/1jn1DroWU8GB5Sc1rQ7wT-WusXK9v4V05ISYHgUEjYZc/edit
@@ -67,7 +69,15 @@ cd "I:\My Drive\Python\Bulk Quotes Image Generator"
 python scripts/dashboard.py
 ```
 
-Access at: http://localhost:5000
+Access at: http://localhost:8000
+
+### Optional: Enable AI Backgrounds (Hugging Face)
+
+Set your free Hugging Face token as an environment variable:
+
+```cmd
+set HUGGINGFACE_API_KEY=hf_your_token_here
+```
 
 ### 4. Generate Images
 1. Select a topic from your Database sheet
@@ -76,7 +86,7 @@ Access at: http://localhost:5000
 4. Click "Generate Quote Image"
 5. Optionally upload to Google Drive
 
-## 📁 Project Structure
+## Project Structure
 
 ```
 Bulk Quotes Image Generator/
@@ -86,6 +96,8 @@ Bulk Quotes Image Generator/
 │   ├── sheet_reader.py           # Google Sheets integration
 │   ├── batch_generator.py        # CLI batch generation
 │   └── google_drive_uploader.py  # Drive upload functionality
+├── tests/                         # Smoke tests
+├── docs/                          # Extra documentation
 ├── assets/
 │   ├── fonts/                    # Font files
 │   ├── ai_backgrounds/           # AI-generated backgrounds
@@ -97,7 +109,7 @@ Bulk Quotes Image Generator/
 └── credentials.json             # Google service account credentials
 ```
 
-## 🎛️ Usage Options
+## Usage Options
 
 ### Web Dashboard
 ```bash
@@ -126,7 +138,7 @@ image_path = generator.generate(
 )
 ```
 
-## 🔗 Google Sheets Integration
+## Google Sheets Integration
 
 ### Database Worksheet Structure
 | Column | Purpose |
@@ -145,7 +157,7 @@ image_path = generator.generate(
 - **Track remaining quotes** per author
 - **Update metadata** (dimensions, timestamps)
 
-## 📤 Google Drive Integration
+## Google Drive Integration
 
 ### Automatic Upload
 - Creates "Bulk Quote Images" folder
@@ -162,7 +174,7 @@ Bulk Quote Images/
 └── [Other Categories]/
 ```
 
-## 🎨 Customization
+## Customization
 
 ### Adding Custom Fonts
 1. Place `.ttf` files in `assets/fonts/`
@@ -174,13 +186,19 @@ Bulk Quote Images/
 2. Supported formats: JPG, PNG
 3. Recommended size: 1080x1080
 
+### AI Backgrounds
+1. Set `HUGGINGFACE_API_KEY` (optional)
+2. In the dashboard select:
+   - Background Mode = `AI (Hugging Face)`
+   - Choose model: Stable Diffusion / OpenJourney / Realistic Vision
+
 ### Watermark Customization
 - Add PNG watermarks to `Watermarks/` folder
 - Adjust opacity (0-1)
 - Control size (5-40%)
 - Choose blend modes (Normal, Multiply, Screen, Overlay)
 
-## 🛠️ Configuration
+## Configuration
 
 Edit `references/config.json`:
 
@@ -205,7 +223,7 @@ Edit `references/config.json`:
 }
 ```
 
-## 🐛 Troubleshooting
+## Troubleshooting
 
 ### Common Issues
 
@@ -230,11 +248,18 @@ Enable debug logging:
 python scripts/dashboard.py --debug
 ```
 
-## 📝 License
+## Documentation
+
+- `CHANGELOG.md`
+- `docs/ENHANCED_SETUP_GUIDE.md`
+- `docs/CHANGES_SUMMARY.md`
+- `docs/QUICK_REFERENCE.md`
+
+## License
 
 This project is licensed under the MIT License.
 
-## 🤝 Contributing
+## Contributing
 
 1. Fork the repository
 2. Create a feature branch

@@ -14,6 +14,7 @@ import random
 import io
 import urllib.request
 import math
+import time
 from colorsys import rgb_to_hls, hls_to_rgb
 
 class QuoteImageGenerator:
@@ -372,7 +373,8 @@ class QuoteImageGenerator:
 
     def generate(self, quote, author, style='minimal', category='', add_watermark=True, author_image: str = '', 
                  watermark_mode: str = 'corner', watermark_opacity: float = None, watermark_blend: str = 'normal', avatar_position: str = 'top-left', font_name: str = None,
-                 quote_font_size: int = None, author_font_size: int = None, watermark_size_percent: float = None, watermark_position: str = 'bottom-right'):
+                 quote_font_size: int = None, author_font_size: int = None, watermark_size_percent: float = None, watermark_position: str = 'bottom-right',
+                 background_mode: str = 'none', ai_model: str = None):
         """Generate image and save"""
         prev_regular = self._selected_font_regular_path
         prev_bold = self._selected_font_bold_path
@@ -393,6 +395,25 @@ class QuoteImageGenerator:
 
             style_func = self.styles.get(style, self.minimal_style)
             img = style_func(quote, author)
+
+            bg_mode = str(background_mode or 'none').strip().lower()
+            if bg_mode != 'none':
+                bg_path = self._resolve_background_path(
+                    mode=bg_mode,
+                    quote=str(quote or ''),
+                    author=str(author or ''),
+                    category=str(category or ''),
+                    ai_model=str(ai_model) if ai_model else None,
+                )
+                if bg_path:
+                    bg_img = self._load_background_image(bg_path)
+                    if bg_img:
+                        try:
+                            base = bg_img.convert('RGB')
+                            styled = img.convert('RGB')
+                            img = Image.blend(base, styled, 0.35)
+                        except Exception:
+                            pass
             
             # Always add avatar if available
             img = self.add_avatar(img, author_image, position=avatar_position)
@@ -447,6 +468,54 @@ class QuoteImageGenerator:
         finally:
             self._selected_font_regular_path = prev_regular
             self._selected_font_bold_path = prev_bold
+
+    def _load_background_image(self, path: str):
+        try:
+            p = Path(path)
+            if not p.exists():
+                return None
+            bg = Image.open(str(p))
+            if bg.mode not in ('RGB', 'RGBA'):
+                bg = bg.convert('RGB')
+            bg = bg.resize((self.width, self.height), Image.Resampling.LANCZOS)
+            return bg
+        except Exception:
+            return None
+
+    def _resolve_background_path(self, mode: str, quote: str, author: str, category: str, ai_model: str | None = None) -> str | None:
+        m = str(mode or 'none').strip().lower()
+        if m == 'custom':
+            folder = Path('assets') / 'custom_backgrounds'
+            if not folder.exists():
+                return None
+            files = []
+            for ext in ('*.jpg', '*.jpeg', '*.png'):
+                files.extend(folder.glob(ext))
+            if not files:
+                return None
+            return str(random.choice(sorted(files)))
+
+        if m == 'ai':
+            try:
+                from ai_prompt_generator import AIPromptGenerator
+                from ai_image_generator import AIImageGenerator
+            except Exception:
+                return None
+
+            prompt_gen = AIPromptGenerator()
+            prompt_data = prompt_gen.generate_prompt(quote=quote, author=author, category=category)
+
+            generator = AIImageGenerator()
+            filename = f"ai_generated_{int(time.time())}.png"
+            out = generator.generate_image(
+                prompt=str(prompt_data.get('prompt') or ''),
+                negative_prompt=str(prompt_data.get('negative_prompt') or ''),
+                filename=filename,
+                model=str(ai_model) if ai_model else None,
+            )
+            return str(out) if out else None
+
+        return None
     
     # ============== ORIGINAL STYLES ==============
     

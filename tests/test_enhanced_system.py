@@ -9,7 +9,8 @@ import sys
 from pathlib import Path
 
 # Add scripts to path
-scripts_dir = Path(__file__).parent / 'scripts'
+root_dir = Path(__file__).resolve().parent.parent
+scripts_dir = root_dir / 'scripts'
 sys.path.insert(0, str(scripts_dir))
 
 def print_header(title):
@@ -70,19 +71,25 @@ def test_directories():
     print_header("TEST 3: Directory Structure")
     
     dirs = [
-        'assets/custom_backgrounds',
-        'assets/ai_backgrounds',
-        'Generated_Images',
-        'scripts',
-        'Watermarks'
+        root_dir / 'assets' / 'custom_backgrounds',
+        root_dir / 'assets' / 'ai_backgrounds',
+        root_dir / 'Generated_Images',
+        root_dir / 'scripts',
+        root_dir / 'Watermarks'
     ]
     
     all_good = True
     for dir_path in dirs:
         if Path(dir_path).exists():
-            print(f"✅ {dir_path}/")
+            rel = Path(dir_path).relative_to(root_dir)
+            print(f"✅ {rel}/")
         else:
-            print(f"❌ {dir_path}/ - NOT FOUND")
+            rel = Path(dir_path)
+            try:
+                rel = rel.relative_to(root_dir)
+            except Exception:
+                pass
+            print(f"❌ {rel}/ - NOT FOUND")
             all_good = False
     
     if all_good:
@@ -97,13 +104,13 @@ def test_files():
         ('scripts/ai_prompt_generator.py', 'AI Prompt Generator'),
         ('scripts/ai_image_generator.py', 'AI Image Generator'),
         ('scripts/dashboard.py', 'Dashboard'),
-        ('QUICK_REFERENCE.md', 'Quick Reference'),
-        ('ENHANCED_SETUP_GUIDE.md', 'Setup Guide'),
+        ('docs/QUICK_REFERENCE.md', 'Quick Reference'),
+        ('docs/ENHANCED_SETUP_GUIDE.md', 'Setup Guide'),
     ]
     
     all_good = True
     for file_path, name in files:
-        if Path(file_path).exists():
+        if (root_dir / file_path).exists():
             print(f"✅ {name}")
         else:
             print(f"❌ {name} - NOT FOUND")
