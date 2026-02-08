@@ -370,7 +370,7 @@ class QuoteImageGenerator:
         tinted.putdata(new_data)
         return tinted
 
-    def generate(self, quote, author, style='minimal', add_watermark=True, author_image: str = '', 
+    def generate(self, quote, author, style='minimal', category='', add_watermark=True, author_image: str = '', 
                  watermark_mode: str = 'corner', watermark_opacity: float = None, watermark_blend: str = 'normal', avatar_position: str = 'top-left', font_name: str = None,
                  quote_font_size: int = None, author_font_size: int = None, watermark_size_percent: float = None, watermark_position: str = 'bottom-right'):
         """Generate image and save"""
@@ -414,7 +414,31 @@ class QuoteImageGenerator:
                     size_percent=sp if sp is not None else 0.15
                 )
 
-            filename = f"quote_{style}_{random.randint(10000, 99999)}.png"
+            # Generate filename with format: <Category> - <Quote> - <Author> - <DD-MM-YYYY_HHMM>
+            from datetime import datetime
+            import re
+            
+            # Clean and truncate text for filename
+            clean_category = re.sub(r'[^\w\s-]', '', str(category)).strip() if category else 'General'
+            clean_quote = re.sub(r'[^\w\s-]', '', str(quote)).strip()
+            clean_author = re.sub(r'[^\w\s-]', '', str(author)).strip()
+            
+            # Limit lengths to avoid overly long filenames
+            clean_category = clean_category[:20] if len(clean_category) > 20 else clean_category
+            clean_quote = clean_quote[:30] if len(clean_quote) > 30 else clean_quote
+            clean_author = clean_author[:20] if len(clean_author) > 20 else clean_author
+            
+            # Replace spaces with hyphens and remove extra spaces
+            clean_category = re.sub(r'\s+', '-', clean_category)
+            clean_quote = re.sub(r'\s+', '-', clean_quote)
+            clean_author = re.sub(r'\s+', '-', clean_author)
+            
+            # Get current timestamp
+            timestamp = datetime.now().strftime('%d-%m-%Y_%H%M')
+            
+            # Build filename
+            filename = f"{clean_category} - {clean_quote} - {clean_author} - {timestamp}.png"
+            
             output_path = self.output_dir / filename
             if img.mode != 'RGB':
                 img = img.convert('RGB')
@@ -1179,7 +1203,7 @@ class QuoteImageGenerator:
 
 
 # Standalone function
-def create_quote_image(quote, author, style='minimal', output_dir='Generated_Images'):
+def create_quote_image(quote, author, style='minimal', category='', output_dir='Generated_Images'):
     """Quick function to create a quote image"""
     generator = QuoteImageGenerator(output_dir)
-    return generator.generate(quote, author, style)
+    return generator.generate(quote, author, style, category)

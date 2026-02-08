@@ -54,7 +54,8 @@ def main():
             image_path = image_gen.generate(
                 quote_data['quote'],
                 quote_data['author'],
-                args.style
+                args.style,
+                category=quote_data.get('category', '')
             )
             generated_paths.append(image_path)
             print(f"  ✅ Saved to: {image_path}")
