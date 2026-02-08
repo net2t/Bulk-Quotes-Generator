@@ -72,5 +72,5 @@ Open:
 When sheet write-back is enabled, the tool writes local preview links like:
 
 - `http://127.0.0.1:8000/generated/...`
-
+t
 (These are meant for **local use** while the dashboard is running.)
