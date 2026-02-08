@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Google Drive Uploader
+Google Drive Uploader for Bulk Quotes Image Generator
 Uploads images to Google Drive and returns shareable links
 """
 
@@ -90,7 +90,7 @@ class DriveUploader:
         try:
             # Ensure root folder exists
             if not self.root_folder_id:
-                self.root_folder_id = self.get_or_create_folder("Quote Images")
+                self.root_folder_id = self.get_or_create_folder("Bulk Quote Images")
             
             # Create topic folder if specified
             parent_id = self.root_folder_id

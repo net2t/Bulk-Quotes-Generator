@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
 """
-Batch Quote Image Generator
+Batch Quote Image Generator for Bulk Quotes Image Generator
 Generate multiple images at once via CLI
+Updated with new filename format and Database worksheet support
 """
 
 import argparse
@@ -14,13 +15,13 @@ import os
 def main():
     parser = argparse.ArgumentParser(description='Batch generate quote images')
     parser.add_argument('--topic', required=True, help='Topic to generate from')
-    parser.add_argument('--style', default='bright', choices=['minimal', 'bright', 'elegant', 'bold', 'modern'])
+    parser.add_argument('--style', default='elegant', help='Style template to use')
     parser.add_argument('--count', type=int, default=10, help='Number of images to generate')
     parser.add_argument('--upload', action='store_true', help='Upload to Google Drive')
     
     args = parser.parse_args()
     
-    print(f"\n🎨 Batch Quote Image Generator")
+    print(f"\n🎨 Bulk Quotes Image Generator - Batch Mode")
     print(f"Topic: {args.topic}")
     print(f"Style: {args.style}")
     print(f"Count: {args.count}")
@@ -30,14 +31,13 @@ def main():
     sheet_reader = SheetReader()
     image_gen = QuoteImageGenerator()
     
-    # Connect to sheets
-    sheet_url = os.getenv('GOODREADS_SHEET_URL')
-    if not sheet_reader.connect(sheet_url):
+    # Connect to sheets (uses fixed URL)
+    if not sheet_reader.connect():
         print("❌ Failed to connect to Google Sheets")
         return
     
     # Get quotes
-    quotes = sheet_reader.get_quotes_by_topic(args.topic)
+    quotes = sheet_reader.get_quotes(args.topic)
     if not quotes:
         print(f"❌ No quotes found for topic: {args.topic}")
         return
@@ -58,7 +58,7 @@ def main():
                 category=quote_data.get('category', '')
             )
             generated_paths.append(image_path)
-            print(f"  ✅ Saved to: {image_path}")
+            print(f"  ✅ Saved to: {Path(image_path).name}")
             
         except Exception as e:
             print(f"  ❌ Error: {e}")
@@ -73,10 +73,11 @@ def main():
                 if link:
                     print(f"  ✅ Uploaded: {link}")
                 else:
-                    print(f"  ❌ Failed to upload: {path}")
+                    print(f"  ❌ Failed to upload: {Path(path).name}")
     
     print(f"\n✅ Batch generation complete!")
     print(f"Generated {len(generated_paths)} images in: Generated_Images/")
+    print(f"📁 Filename format: <Category> - <Quote> - <Author> - <DD-MM-YYYY_HHMM>.png")
 
 if __name__ == '__main__':
     main()
