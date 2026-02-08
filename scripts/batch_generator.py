@@ -6,11 +6,17 @@ Updated with new filename format and Database worksheet support
 """
 
 import argparse
+import os
+import sys
 from pathlib import Path
+
+# Add scripts directory to path for imports
+script_dir = Path(__file__).parent
+sys.path.insert(0, str(script_dir))
+
 from sheet_reader import SheetReader
 from image_generator import QuoteImageGenerator
 from google_drive_uploader import DriveUploader
-import os
 
 def main():
     parser = argparse.ArgumentParser(description='Batch generate quote images')

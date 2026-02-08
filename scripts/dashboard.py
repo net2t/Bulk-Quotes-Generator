@@ -593,7 +593,7 @@ DASHBOARD_HTML = '''
         <div class="settings-grid">
             <div class="settings-card">
                 <h3>� Quote Font Size</h3>
-                <input id="quote-font-size" type="number" min="20" max="120" value="52" />
+                <input id="quote-font-size" type="number" min="20" max="120" value="60" />
                 <div class="hint">Increase/decrease quote text size</div>
             </div>
 
@@ -605,13 +605,13 @@ DASHBOARD_HTML = '''
 
             <div class="settings-card">
                 <h3>🫧 Watermark Opacity</h3>
-                <input id="watermark-opacity" type="number" min="0" max="1" step="0.05" value="0.70" />
+                <input id="watermark-opacity" type="number" min="0" max="1" step="0.05" value="0.80" />
                 <div class="hint">0 = hidden, 1 = solid</div>
             </div>
 
             <div class="settings-card">
                 <h3>🖼️ Watermark Size (%)</h3>
-                <input id="watermark-size" type="number" min="5" max="40" step="1" value="15" />
+                <input id="watermark-size" type="number" min="5" max="40" step="1" value="12" />
                 <div class="hint">15 = recommended</div>
             </div>
 
@@ -639,19 +639,10 @@ DASHBOARD_HTML = '''
             
             <div class="settings-card">
                 <h3>📦 Bulk Generator</h3>
-                <input id="bulk-count" type="number" min="1" max="200" value="10" />
+                <input id="bulk-count" type="number" min="1" max="200" value="4" />
                 <button class="btn-generate" style="padding: 10px; font-size: 13px; margin-top: 10px;" onclick="generateBulk()" id="bulk-btn" disabled>
                     🚀 Generate Bulk
                 </button>
-            </div>
-
-            <div class="settings-card">
-                <h3>☁️ Upload to Google Drive</h3>
-                <select id="upload-drive">
-                    <option value="off" selected>Off</option>
-                    <option value="on">On</option>
-                </select>
-                <div class="hint">Uploads PNG to Drive and returns share link</div>
             </div>
 
             <div class="settings-card">
@@ -812,7 +803,7 @@ DASHBOARD_HTML = '''
                 watermark_opacity,
                 watermark_blend: document.getElementById('watermark-blend').value,
                 avatar_position: document.getElementById('avatar-position').value,
-                upload_to_drive: (document.getElementById('upload-drive').value === 'on'),
+                upload_to_drive: false,
                 background_mode: document.getElementById('background-mode').value,
                 ai_model: document.getElementById('ai-model').value
             };
@@ -836,14 +827,9 @@ DASHBOARD_HTML = '''
                     const messageP = document.getElementById('result-message');
 
                     title.textContent = '✅ Image Generated Successfully';
-                    const driveOn = (document.getElementById('upload-drive').value === 'on');
-                    const driveHtml = data.drive_link
-                        ? `☁️ <strong>Drive:</strong> <a href="${data.drive_link}" target="_blank">Open</a><br>`
-                        : (driveOn ? `☁️ <strong>Drive:</strong> Failed (${(data.drive_error || 'no link')})<br>` : '');
                     messageP.innerHTML = `
                         📁 <strong>Saved to:</strong> ${data.image_path}<br>
                         🎨 <strong>Style:</strong> ${selectedStyle}<br>
-                        ${driveHtml}
                         ${data.upload_result ? '📝 <strong>Sheet:</strong> ' + data.upload_result : ''}
                     `;
                     resultDiv.classList.add('show');
@@ -892,7 +878,7 @@ DASHBOARD_HTML = '''
                 watermark_opacity,
                 watermark_blend,
                 avatar_position,
-                upload_to_drive: (document.getElementById('upload-drive').value === 'on'),
+                upload_to_drive: false,
                 background_mode: document.getElementById('background-mode').value,
                 ai_model: document.getElementById('ai-model').value
             };
@@ -908,16 +894,10 @@ DASHBOARD_HTML = '''
 
                     const resultDiv = document.getElementById('result');
                     const messageP = document.getElementById('result-message');
-                    const driveCount = data.drive_links ? data.drive_links.length : 0;
-                    const driveOn = (document.getElementById('upload-drive').value === 'on');
-                    const driveHint = driveCount
-                        ? `☁️ Drive uploaded: ${driveCount}<br>`
-                        : (driveOn ? `☁️ Drive: Failed<br>` : '');
                     messageP.innerHTML = `
                         📦 <strong>Bulk Generation Complete!</strong><br>
                         ✅ Generated: ${data.generated || 0} images<br>
                         🎨 Style: ${selectedStyle}<br>
-                        ${driveHint}
                         📁 Folder: Generated_Images/
                     `;
                     resultDiv.classList.add('show');
@@ -1142,6 +1122,8 @@ def _run_bulk_generate(data: dict, job_id: str) -> dict:
     author_font_size = data.get('author_font_size')
     watermark_size_percent = data.get('watermark_size_percent')
     upload_to_drive = bool(data.get('upload_to_drive'))
+    background_mode = data.get('background_mode', 'none')
+    ai_model = data.get('ai_model', 'stable_diffusion')
 
     if not topic:
         return {'success': False, 'error': 'Topic required'}

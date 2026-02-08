@@ -22,4 +22,3 @@
 - Repository cleanup:
   - Moved documentation into `docs/`
   - Moved tests into `tests/`
-

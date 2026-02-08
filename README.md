@@ -7,13 +7,15 @@ Current version: **1.100.1.1**
 ## Features
 
 ### Core Features
+
 - **16 Professional Design Templates** - From elegant to modern, neon to vintage
-- **Smart Filename Format** - `<Category> - <Quote> - <Author> - <DD-MM-YYYY_HHMM>.png`
+- **Smart Filename Format** - `<Category> - <Quote> - <Author> - <DD-MM-YYYY_HHMM>.png>`
 - **Google Sheets Integration** - Connects to your Database worksheet
 - **Bulk Generation** - Generate multiple images at once
 - **Google Drive Upload** - Automatic upload with shareable links
 
 ### Design Templates
+
 1. **Elegant** - Sophisticated with gradient backgrounds
 2. **Modern** - Bold colors with accent bars
 3. **Neon** - Glowing text effects
@@ -32,6 +34,7 @@ Current version: **1.100.1.1**
 16. **Minimal** - Clean and simple
 
 ### Customization Options
+
 - **Font Selection** - Multiple font options
 - **Font Size Control** - Adjustable quote and author text sizes
 - **Watermark Controls** - Opacity, size, blend modes, positioning
@@ -41,11 +44,13 @@ Current version: **1.100.1.1**
 ## Requirements
 
 ### Python Packages
+
 ```bash
 pip install flask gspread google-auth google-auth-oauthlib google-auth-httplib2 pillow google-api-python-client
 ```
 
 ### System Requirements
+
 - Python 3.7+
 - Google Service Account credentials
 - Access to Google Sheets (Database worksheet)
@@ -53,23 +58,26 @@ pip install flask gspread google-auth google-auth-oauthlib google-auth-httplib2 
 ## Quick Start
 
 ### 1. Setup Google Sheets
-1. Open your Database sheet: https://docs.google.com/spreadsheets/d/1jn1DroWU8GB5Sc1rQ7wT-WusXK9v4V05ISYHgUEjYZc/edit
+
+1. Open your Database sheet: <https://docs.google.com/spreadsheets/d/1jn1DroWU8GB5Sc1rQ7wT-WusXK9v4V05ISYHgUEjYZc/edit>
 2. Share with your service account email
 3. Ensure columns: `QUOTE`, `AUTHOR`, `CATEGORY`, `STATUS`
 
 ### 2. Setup Credentials
+
 1. Place `credentials.json` in the project root
 2. Ensure the service account has access to:
    - Google Sheets API
    - Google Drive API
 
 ### 3. Run the Dashboard
+
 ```bash
 cd "I:\My Drive\Python\Bulk Quotes Image Generator"
 python scripts/dashboard.py
 ```
 
-Access at: http://localhost:8000
+Access at: <http://localhost:8000>
 
 ### Optional: Enable AI Backgrounds (Hugging Face)
 
@@ -80,6 +88,7 @@ set HUGGINGFACE_API_KEY=hf_your_token_here
 ```
 
 ### 4. Generate Images
+
 1. Select a topic from your Database sheet
 2. Choose a quote and design style
 3. Customize fonts, watermarks, and avatars
@@ -88,7 +97,7 @@ set HUGGINGFACE_API_KEY=hf_your_token_here
 
 ## Project Structure
 
-```
+```text
 Bulk Quotes Image Generator/
 ├── scripts/
 │   ├── dashboard.py              # Web dashboard
@@ -112,20 +121,24 @@ Bulk Quotes Image Generator/
 ## Usage Options
 
 ### Web Dashboard
+
 ```bash
 python scripts/dashboard.py
 ```
+
 - Interactive web interface
 - Real-time preview
 - Batch generation
 - Google Drive integration
 
 ### CLI Batch Generation
+
 ```bash
 python scripts/batch_generator.py --topic "Inspirational Quotes" --style elegant --count 20 --upload
 ```
 
 ### Single Image Generation
+
 ```python
 from scripts.image_generator import QuoteImageGenerator
 
@@ -141,17 +154,19 @@ image_path = generator.generate(
 ## Google Sheets Integration
 
 ### Database Worksheet Structure
-| Column | Purpose |
+
+|Column|Purpose|
 |--------|---------|
-| QUOTE | Quote text |
-| AUTHOR | Author name |
-| CATEGORY | Quote category/topic |
-| STATUS | Generation status (Done/Skip) |
-| PREVIEW_LINK | Generated image link |
-| DIMENSIONS | Image dimensions |
-| GENERATED_AT | Timestamp |
+|QUOTE|Quote text|
+|AUTHOR|Author name|
+|CATEGORY|Quote category/topic|
+|STATUS|Generation status (Done/Skip)|
+|PREVIEW_LINK|Generated image link|
+|DIMENSIONS|Image dimensions|
+|GENERATED_AT|Timestamp|
 
 ### Supported Operations
+
 - **Read quotes** by category
 - **Mark as generated** with image links
 - **Track remaining quotes** per author
@@ -160,13 +175,15 @@ image_path = generator.generate(
 ## Google Drive Integration
 
 ### Automatic Upload
+
 - Creates "Bulk Quote Images" folder
 - Organizes by topic/category
 - Generates shareable links
 - Makes images publicly accessible
 
 ### Folder Structure
-```
+
+```text
 Bulk Quote Images/
 ├── Inspirational Quotes/
 ├── Life Quotes/
@@ -177,22 +194,28 @@ Bulk Quote Images/
 ## Customization
 
 ### Adding Custom Fonts
+
 1. Place `.ttf` files in `assets/fonts/`
 2. Fonts appear automatically in dashboard
 3. Supported formats: TTF, OTF
 
 ### Custom Backgrounds
+
 1. Add images to `assets/custom_backgrounds/`
 2. Supported formats: JPG, PNG
 3. Recommended size: 1080x1080
 
 ### AI Backgrounds
+
 1. Set `HUGGINGFACE_API_KEY` (optional)
 2. In the dashboard select:
    - Background Mode = `AI (Hugging Face)`
    - Choose model: Stable Diffusion / OpenJourney / Realistic Vision
 
 ### Watermark Customization
+
+#### Watermark Options
+
 - Add PNG watermarks to `Watermarks/` folder
 - Adjust opacity (0-1)
 - Control size (5-40%)
@@ -227,23 +250,28 @@ Edit `references/config.json`:
 
 ### Common Issues
 
-**"Sheet connection failed"**
+#### Sheet Connection Failed
+
 - Verify credentials.json path
 - Check service account permissions
 - Ensure sheet is shared with service account
 
-**"No fonts found"**
+#### No Fonts Found
+
 - Check assets/fonts/ directory
 - Verify TTF files are valid
 - Restart dashboard after adding fonts
 
-**"Drive upload failed"**
+#### Drive Upload Failed
+
 - Check Google Drive API access
 - Verify service account permissions
 - Ensure sufficient Drive storage
 
 ### Debug Mode
+
 Enable debug logging:
+
 ```bash
 python scripts/dashboard.py --debug
 ```
@@ -267,14 +295,13 @@ This project is licensed under the MIT License.
 4. Test thoroughly
 5. Submit a pull request
 
-## 📞 Support
+## Support
 
 For issues and support:
+
 1. Check the troubleshooting section
 2. Verify your Google Sheets setup
 3. Ensure credentials are properly configured
 4. Test with a single quote first
 
----
-
-**Generated with ❤️ by Bulk Quotes Image Generator**
+Generated by Bulk Quotes Image Generator
