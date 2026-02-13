@@ -20,12 +20,19 @@ credentials2.json
 # Generated assets
 Generated_Images/
 Watermarks/
+Export/
+templates/
+*.zip
+*.tar
+*.tar.gz
+*.7z
 
 # OS / IDE
 .DS_Store
 Thumbs.db
 .vscode/
 .idea/
+.windsurf/
 
 # Logs
 *.log

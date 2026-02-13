@@ -231,12 +231,12 @@ class QuoteImageGenerator:
         return lines
 
     def _pick_watermark_file(self, mode: str = 'corner', style: str = '') -> Path:
+        import random
         watermark_files = sorted(self.watermark_dir.glob('*.png'))
         if not watermark_files:
             return None
-        key = f"{str(mode or '').strip().lower()}|{str(style or '').strip().lower()}"
-        idx = abs(hash(key)) % len(watermark_files)
-        return watermark_files[idx]
+        # Use random selection instead of deterministic hash
+        return random.choice(watermark_files)
 
     def add_watermark(self, image, opacity=0.7, style: str = '', mode: str = 'corner', color_match: bool = False, blend_mode: str = 'normal', position: str = 'bottom-right', size_percent: float = 0.15):
         """

@@ -611,7 +611,7 @@ DASHBOARD_HTML = '''
 
             <div class="settings-card">
                 <h3>🖼️ Watermark Size (%)</h3>
-                <input id="watermark-size" type="number" min="5" max="40" step="1" value="12" />
+                <input id="watermark-size" type="number" min="5" max="40" step="1" value="15" />
                 <div class="hint">15 = recommended</div>
             </div>
 
