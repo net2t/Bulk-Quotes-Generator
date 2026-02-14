@@ -291,6 +291,23 @@ class SheetReader:
             print(f"Error writing generation meta: {e}")
             return False
 
+    def write_translation(self, row: int, translated_text: str) -> bool:
+        if not self.spreadsheet:
+            return False
+        try:
+            worksheet = self.spreadsheet.worksheet(self._get_database_worksheet_name())
+            # Column layout used by unified app push:
+            # SNO, LENGTH, CATEGORY, AUTHOR, QUOTE, TRANSLATE, ...
+            worksheet.update_cell(int(row), 6, str(translated_text or ''))
+            try:
+                self.cache = {}
+            except Exception:
+                pass
+            return True
+        except Exception as e:
+            print(f"Error writing translation: {e}")
+            return False
+
 # Standalone function for easy import
 def fetch_quotes(topic, credentials_path="credentials.json"):
     """Quick function to fetch quotes"""

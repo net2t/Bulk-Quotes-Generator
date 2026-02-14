@@ -458,6 +458,7 @@ def api_translate():
     text = str(data.get("text") or "")
     src = str(data.get("src") or "en")
     dest = str(data.get("dest") or "ur")
+    row = data.get("row")
 
     if not text.strip():
         return jsonify({"ok": False, "error": "Empty text"}), 400
@@ -467,7 +468,24 @@ def api_translate():
     try:
         t = Translator()
         res = t.translate(text, src=src, dest=dest)
-        return jsonify({"ok": True, "translated": str(getattr(res, 'text', '') or '')})
+        translated = str(getattr(res, 'text', '') or '')
+
+        saved = False
+        save_error = None
+        if row not in (None, ""):
+            sr = get_sheet()
+            if not sr or not sr.spreadsheet:
+                save_error = "Not connected to Google Sheets"
+            else:
+                try:
+                    saved = bool(sr.write_translation(int(row), translated))
+                    if not saved:
+                        save_error = "Sheet write failed"
+                except Exception as e:
+                    saved = False
+                    save_error = str(e)
+
+        return jsonify({"ok": True, "translated": translated, "saved": saved, "save_error": save_error})
     except Exception as e:
         return jsonify({"ok": False, "error": str(e)}), 500
 

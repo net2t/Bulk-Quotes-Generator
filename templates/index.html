@@ -650,13 +650,14 @@ async function translateSelected(){
   }
   h.textContent='Translating…';
   try{
-    const r=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:curQ.quote,src:'en',dest:'ur'})}).then(x=>x.json());
+    const r=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:curQ.quote,src:'en',dest:'ur',row:curQ._row||null})}).then(x=>x.json());
     if(!r.ok){h.textContent='';toast('Translate failed: '+(r.error||'error'),'err');return;}
     curQ.translate=r.translated||'';
     document.getElementById('g-lang').value='ur';
     applyLangPreview();
     h.textContent='';
-    toast('✅ Translated to Urdu (temp in UI)','ok');
+    if(r.saved) toast('✅ Translated + saved to Sheet','ok');
+    else toast('✅ Translated (not saved)','ok');
   }catch(e){h.textContent='';toast('Translate error','err');}
 }
 
