@@ -23,6 +23,9 @@
   --red:#fb7185;
   --teal-s:rgba(34,211,238,.14);
   --orange-s:rgba(251,146,60,.14);
+  --ink:rgba(255,255,255,.035);
+  --ink2:rgba(255,255,255,.055);
+  --shadow:0 18px 50px rgba(0,0,0,.22);
   --r:14px;
   --font:'JetBrains Mono',monospace;
   --font2:'Syne',system-ui,sans-serif;
@@ -63,8 +66,8 @@ body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
 .stage{display:none}.stage.on{display:block}
 
 /* ── Cards ── */
-.card{background:linear-gradient(180deg,rgba(255,255,255,.065),rgba(255,255,255,.04));border:1px solid var(--border);border-radius:var(--r);
-  padding:20px;backdrop-filter:blur(10px);margin-bottom:16px;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+.card{background:linear-gradient(180deg,var(--ink2),var(--ink));border:1px solid var(--border);border-radius:var(--r);
+  padding:20px;backdrop-filter:blur(10px);margin-bottom:16px;box-shadow:var(--shadow)}
 .ct{font-weight:700;font-size:14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-family:var(--font2);letter-spacing:-.2px}
 .ct .ic{font-size:17px}
 
@@ -121,11 +124,11 @@ select option{background:#1a1a2e;color:var(--text)}
 
 /* ── Quote cards (Review) ── */
 .qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:11px}
-.qcard{background:var(--panel2);border:1px solid var(--border);border-radius:12px;
-  padding:15px;cursor:pointer;transition:all .15s;position:relative}
-.qcard:hover{border-color:var(--border2);transform:translateY(-1px)}
-.qcard.sel{border-color:var(--teal);background:var(--teal-s)}
-.qcard .qt{font-size:13px;line-height:1.6;font-style:italic;margin-bottom:9px}
+.qcard{background:linear-gradient(180deg,var(--ink2),rgba(255,255,255,.028));border:1px solid rgba(255,255,255,.11);border-radius:14px;
+  padding:16px;cursor:pointer;transition:transform .15s,border-color .15s,background .15s;position:relative}
+.qcard:hover{border-color:rgba(255,255,255,.20);transform:translateY(-1px)}
+.qcard.sel{border-color:rgba(34,211,238,.55);background:linear-gradient(180deg,rgba(34,211,238,.10),rgba(255,255,255,.02))}
+.qcard .qt{font-size:13px;line-height:1.65;margin-bottom:10px;color:rgba(232,238,252,.92)}
 .qcard .qm{font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
 .qcard .cb{position:absolute;top:11px;right:11px;width:19px;height:19px;
   border-radius:5px;border:1px solid var(--border2);display:flex;align-items:center;
@@ -146,17 +149,21 @@ select option{background:#1a1a2e;color:var(--text)}
 .scard .sl{font-size:11px;font-weight:600}
 
 /* ── Preview ── */
-.prev-box{background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:11px;
-  padding:18px;min-height:120px}
-.prev-box .pq{font-size:15px;font-style:italic;line-height:1.7;margin-bottom:10px}
+.prev-box{position:relative;background:linear-gradient(180deg,rgba(255,255,255,.05),rgba(255,255,255,.02));
+  border:1px solid rgba(255,255,255,.12);border-radius:14px;padding:18px 18px 16px;min-height:140px;overflow:hidden}
+.prev-box::before{content:'“';position:absolute;left:14px;top:6px;font-family:var(--font2);
+  font-size:56px;line-height:1;color:rgba(255,255,255,.07)}
+.prev-box .pq{font-size:14px;line-height:1.75;margin:8px 0 14px;color:rgba(232,238,252,.94)}
 .prev-box .pa{font-size:12px;color:var(--muted);text-align:right}
+.prev-box .pa::before{content:'';display:block;height:1px;background:rgba(255,255,255,.10);margin:10px 0}
 
 /* ── Image grid ── */
 .igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
-.ithumb{border-radius:9px;overflow:hidden;border:1px solid var(--border);
-  background:var(--panel);aspect-ratio:1;position:relative;cursor:pointer}
+.ithumb{border-radius:12px;overflow:hidden;border:1px solid rgba(255,255,255,.11);
+  background:linear-gradient(180deg,var(--ink2),var(--ink));aspect-ratio:1;position:relative;cursor:pointer;transition:transform .15s,border-color .15s}
+.ithumb:hover{transform:translateY(-1px);border-color:rgba(255,255,255,.22)}
 .ithumb img{width:100%;height:100%;object-fit:cover;display:block}
-.ithumb .iov{position:absolute;inset:0;background:rgba(0,0,0,.6);opacity:0;
+.ithumb .iov{position:absolute;inset:0;background:linear-gradient(180deg,rgba(0,0,0,.10),rgba(0,0,0,.60));opacity:0;
   transition:.2s;display:flex;align-items:center;justify-content:center;font-size:20px}
 .ithumb:hover .iov{opacity:1}
 
@@ -207,7 +214,14 @@ select option{background:#1a1a2e;color:var(--text)}
 ::-webkit-scrollbar{width:5px;height:5px}
 ::-webkit-scrollbar-track{background:transparent}
 ::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px}
-@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}.main{padding:14px}}
+@media(max-width:768px){
+  .g2,.g3,.g4{grid-template-columns:1fr}
+  .main{padding:14px}
+  .topbar{flex-wrap:wrap;gap:10px}
+  .conn{margin-left:0}
+  .pipe{padding:0 14px}
+  .ptab{padding:12px 14px}
+}
 </style>
 </head>
 <body>
