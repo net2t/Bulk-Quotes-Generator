@@ -179,6 +179,25 @@ select option{background:#1a1a2e;color:var(--text)}
 .toast.ok{border-color:rgba(52,211,153,.4);color:var(--green)}
 .toast.err{border-color:rgba(248,113,113,.4);color:var(--red)}
 
+/* ── Modal ── */
+.mo{position:fixed;inset:0;display:none;align-items:center;justify-content:center;z-index:1200;
+  background:rgba(0,0,0,.65);backdrop-filter:blur(6px)}
+.mo.on{display:flex}
+.modal{width:820px;max-width:95vw;max-height:85vh;overflow:auto;
+  border-radius:18px;border:1px solid var(--border);
+  background:linear-gradient(180deg,rgba(12,17,26,.92),rgba(12,17,26,.80));
+  box-shadow:0 30px 90px rgba(0,0,0,.55)}
+.mh{display:flex;align-items:center;gap:12px;padding:16px 18px;border-bottom:1px solid var(--border)}
+.mh .t{font-family:var(--font2);font-weight:800;letter-spacing:-.4px}
+.mh .s{font-size:12px;color:var(--muted)}
+.mh .x{margin-left:auto}
+.mb{padding:18px}
+.pill{display:inline-flex;align-items:center;gap:8px;padding:6px 12px;border-radius:99px;border:1px solid var(--border);
+  font-size:12px;color:var(--muted);background:rgba(255,255,255,.04)}
+.pill.ok{color:var(--green);border-color:rgba(52,211,153,.28);background:rgba(52,211,153,.08)}
+.pill.err{color:var(--red);border-color:rgba(251,113,133,.28);background:rgba(251,113,133,.08)}
+.pill.warn{color:var(--orange);border-color:rgba(251,146,60,.28);background:rgba(251,146,60,.08)}
+
 /* ── Spinner ── */
 .spin{display:inline-block;width:14px;height:14px;border-radius:50%;
   border:2px solid rgba(255,255,255,.2);border-top-color:var(--teal);
@@ -199,6 +218,7 @@ select option{background:#1a1a2e;color:var(--text)}
   <div class="logo">🎑 <b>QuoteMaster</b></div>
   <span class="ver">v{{ app_version }}</span>
   <div class="conn err" id="conn">⏳ Connecting…</div>
+  <button class="btn btn-o btn-sm" style="margin-left:10px" onclick="openConnect()">⚙ Connect</button>
 </header>
 
 <!-- ── Pipeline tabs ──────────────────────────────────────── -->
@@ -437,6 +457,50 @@ select option{background:#1a1a2e;color:var(--text)}
 </div>
 <div class="toast" id="toast"></div>
 
+<div class="mo" id="connect-mo" onclick="if(event.target===this) closeConnect()">
+  <div class="modal">
+    <div class="mh">
+      <div>
+        <div class="t">Connections & API Settings</div>
+        <div class="s">Google Sheets · Drive · Translation · AI Backgrounds</div>
+      </div>
+      <button class="btn btn-o btn-sm x" onclick="closeConnect()">✕ Close</button>
+    </div>
+    <div class="mb">
+      <div class="g2" style="align-items:start">
+        <div class="card" style="margin:0">
+          <div class="ct"><span class="ic">🧠</span>System Status</div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <span class="pill" id="pill-sheets">Sheets: …</span>
+            <span class="pill" id="pill-drive">Drive: …</span>
+            <span class="pill" id="pill-translate">Translate: …</span>
+            <span class="pill" id="pill-img">ImageGen: …</span>
+          </div>
+          <div style="display:flex;gap:10px;margin-top:12px;flex-wrap:wrap">
+            <button class="btn btn-o btn-sm" onclick="refreshConnectStatus()">↻ Refresh</button>
+            <button class="btn btn-o btn-sm" onclick="testTranslate()">🌐 Test Translation</button>
+            <span class="hint" id="ct-msg" style="margin:0;align-self:center"></span>
+          </div>
+        </div>
+
+        <div class="card" style="margin:0">
+          <div class="ct"><span class="ic">🔑</span>API Keys</div>
+          <div class="field">
+            <label>HuggingFace API Key (Saved in browser)</label>
+            <input type="password" id="hf-key-modal" placeholder="hf_xxxxx / optional">
+            <div class="hint">Used only for AI background generation. Stored in <code>localStorage</code> on this device.</div>
+          </div>
+          <div style="display:flex;gap:10px;flex-wrap:wrap">
+            <button class="btn btn-p" onclick="saveHFKey()">💾 Save Key</button>
+            <button class="btn btn-o" onclick="clearHFKey()">🧹 Clear</button>
+            <span class="hint" id="hf-msg" style="margin:0;align-self:center"></span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
 <script>
 // ── State ─────────────────────────────────────────────────────────────────
 let tab=0, style='{{ styles[0].id }}', curQ=null, allQ=[], revQ=[], revSel=new Set(), revOff=0, revCat='';
@@ -446,7 +510,74 @@ const LIM=40;
 document.addEventListener('DOMContentLoaded',()=>{
   loadStats(); loadTopics(); loadFonts(); loadRevCats();
   setInterval(loadStats,30000);
+  loadHFKey();
 });
+
+function openConnect(){
+  document.getElementById('connect-mo').classList.add('on');
+  refreshConnectStatus();
+}
+function closeConnect(){
+  document.getElementById('connect-mo').classList.remove('on');
+}
+
+function loadHFKey(){
+  try{
+    const k=localStorage.getItem('qm_hf_key')||'';
+    const input=document.getElementById('g-hf');
+    const m=document.getElementById('hf-key-modal');
+    if(input) input.value=k;
+    if(m) m.value=k;
+  }catch(e){}
+}
+
+function saveHFKey(){
+  const k=(document.getElementById('hf-key-modal').value||'').trim();
+  try{localStorage.setItem('qm_hf_key',k);}catch(e){}
+  const input=document.getElementById('g-hf');
+  if(input) input.value=k;
+  document.getElementById('hf-msg').textContent=k?'Saved':'Cleared';
+  setTimeout(()=>document.getElementById('hf-msg').textContent='',1500);
+}
+
+function clearHFKey(){
+  document.getElementById('hf-key-modal').value='';
+  try{localStorage.removeItem('qm_hf_key');}catch(e){}
+  const input=document.getElementById('g-hf');
+  if(input) input.value='';
+  document.getElementById('hf-msg').textContent='Cleared';
+  setTimeout(()=>document.getElementById('hf-msg').textContent='',1500);
+}
+
+function pill(id, ok, label, warn=false){
+  const el=document.getElementById(id);
+  el.className='pill '+(ok?'ok':(warn?'warn':'err'));
+  el.textContent=label;
+}
+
+async function refreshConnectStatus(){
+  const msg=document.getElementById('ct-msg');
+  msg.textContent='';
+  try{
+    const d=await fetch('/api/stats').then(r=>r.json());
+    pill('pill-sheets', !!d.sheets_ok, 'Sheets: '+(d.sheets_ok?'Connected':'Not Connected'), !d.sheets_ok);
+    pill('pill-img', !!d.imggen_ok, 'ImageGen: '+(d.imggen_ok?'Ready':'Missing'), !d.imggen_ok);
+    pill('pill-drive', true, 'Drive: Available (service account)', false);
+    pill('pill-translate', true, 'Translate: googletrans', false);
+  }catch(e){
+    msg.textContent='Failed to load status';
+  }
+}
+
+async function testTranslate(){
+  const msg=document.getElementById('ct-msg');
+  msg.textContent='Testing translation…';
+  try{
+    const r=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'Life goes on',src:'en',dest:'ur'})}).then(x=>x.json());
+    if(!r.ok){msg.textContent='Translate failed';toast('Translate failed: '+(r.error||'error'),'err');return;}
+    msg.textContent='OK: '+(r.translated||'');
+  }catch(e){msg.textContent='Translate error';}
+}
 
 // ── Tab ───────────────────────────────────────────────────────────────────
 function go(n){
