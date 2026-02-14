@@ -19,6 +19,13 @@ from pathlib import Path
 from datetime import datetime
 from flask import Flask, render_template, request, jsonify, send_from_directory
 
+try:
+    from googletrans import Translator
+    _TRANSLATE_OK = True
+except Exception:
+    Translator = None
+    _TRANSLATE_OK = False
+
 # ── Paths ─────────────────────────────────────────────────────────────────────
 BASE_DIR    = Path(__file__).parent.resolve()
 SCRIPTS_DIR = BASE_DIR / "scripts"
@@ -94,6 +101,28 @@ def get_drive() -> "DriveUploader | None":
         except Exception:
             pass
     return _drive
+
+
+def _sanitize_quote_author(quote: str, author: str) -> str:
+    q = str(quote or '').strip()
+    a = str(author or '').strip()
+    if not q or not a:
+        return q
+    q_cmp = re.sub(r"\s+", " ", q).strip().lower()
+    a_cmp = re.sub(r"\s+", " ", a).strip().lower()
+
+    # Common patterns where author is appended at end of quote text
+    patterns = [
+        rf"{re.escape(a_cmp)}$",
+        rf"[-—–]\s*{re.escape(a_cmp)}$",
+        rf"\"\s*{re.escape(a_cmp)}$",
+        rf"\"\s*[-—–]\s*{re.escape(a_cmp)}$",
+    ]
+    for p in patterns:
+        if re.search(p, q_cmp, flags=re.IGNORECASE):
+            q = re.sub(p, "", q, flags=re.IGNORECASE).rstrip(" \t\r\n\"-—–")
+            break
+    return q.strip()
 
 # ── Job tracker ───────────────────────────────────────────────────────────────
 JOBS: dict[str, dict] = {}
@@ -353,7 +382,7 @@ def api_review_quotes():
         pass
 
     page   = rows[offset: offset + limit]
-    quotes = [{"quote":r.get("QUOTE",""), "author":r.get("AUTHOR",""),
+    quotes = [{"quote":r.get("QUOTE",""), "translate":r.get("TRANSLATE",""), "author":r.get("AUTHOR",""),
                "category":r.get("CATEGORY",""), "tags":r.get("TAGS",""),
                "image":r.get("IMAGE",""), "length":r.get("TOTAL",""),
                "likes":r.get("LIKES","")} for r in page]
@@ -389,8 +418,9 @@ def api_review_push():
             to_add.append([
                 "", len(q.get("quote","")),
                 q.get("category",""), q.get("author",""),
-                q.get("quote",""),    q.get("tags",""),
-                q.get("image",""),    "", "", "", "", "Pending", "", ""
+                q.get("quote",""),    q.get("translate",""),
+                q.get("tags",""),     q.get("image",""),
+                "", "", "", "", "Pending", "", ""
             ])
 
         if to_add:
@@ -420,6 +450,26 @@ def api_quotes(topic):
         try: quotes = sr.get_quotes_by_topic(topic)
         except Exception: pass
     return jsonify({"quotes": quotes})
+
+
+@app.route("/api/translate", methods=["POST"])
+def api_translate():
+    data = request.get_json() or {}
+    text = str(data.get("text") or "")
+    src = str(data.get("src") or "en")
+    dest = str(data.get("dest") or "ur")
+
+    if not text.strip():
+        return jsonify({"ok": False, "error": "Empty text"}), 400
+    if not _TRANSLATE_OK:
+        return jsonify({"ok": False, "error": "Translation not available. Install requirements."}), 503
+
+    try:
+        t = Translator()
+        res = t.translate(text, src=src, dest=dest)
+        return jsonify({"ok": True, "translated": str(getattr(res, 'text', '') or '')})
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 500
 
 
 @app.route("/api/remaining/<topic>")
@@ -482,8 +532,19 @@ def _single(data: dict, job_id: str) -> dict:
     JOBS[job_id]["progress"] = 0.25
     JOBS[job_id]["message"]  = "Rendering…"
 
+    language = str(data.get("language") or "en").strip().lower()
+    font_en = data.get("font_name_en") or data.get("font_name") or None
+    font_ur = data.get("font_name_ur") or data.get("font_name") or None
+    font_name = font_ur if language in ("ur", "urdu") else font_en
+
+    quote_src = data.get("quote", "")
+    if language in ("ur", "urdu"):
+        quote_src = data.get("translate") or data.get("quote", "")
+
+    quote_src = _sanitize_quote_author(quote_src, str(data.get("author", "")))
+
     path = g.generate(
-        quote             = data.get("quote",""),
+        quote             = quote_src,
         author            = data.get("author",""),
         style             = data.get("style","elegant"),
         category          = data.get("category",""),
@@ -492,13 +553,15 @@ def _single(data: dict, job_id: str) -> dict:
         watermark_opacity = float(data.get("watermark_opacity") or 0.7),
         watermark_blend   = str(data.get("watermark_blend") or "normal"),
         avatar_position   = str(data.get("avatar_position") or "top-left"),
-        font_name         = data.get("font_name") or None,
+        font_name         = font_name,
         quote_font_size   = int(data.get("quote_font_size") or 52),
         author_font_size  = int(data.get("author_font_size") or 30),
         watermark_size_percent = float(data.get("watermark_size_percent") or 0.15),
         watermark_position= "bottom-right",
         background_mode   = str(data.get("background_mode") or "none"),
         ai_model          = data.get("ai_model") or None,
+        hf_api_key        = data.get("hf_api_key") or None,
+        language          = language,
     )
 
     JOBS[job_id]["progress"] = 0.65
@@ -519,12 +582,30 @@ def _single(data: dict, job_id: str) -> dict:
         except Exception as e:
             upload_result = f"Sheet error: {e}"
 
+    drive_link = None
+    drive_error = None
+    if bool(data.get("upload_to_drive")):
+        JOBS[job_id]["progress"] = 0.82
+        JOBS[job_id]["message"]  = "Uploading to Google Drive…"
+        du = get_drive()
+        if not du:
+            drive_error = "Drive uploader not available"
+        else:
+            try:
+                drive_link = du.upload_image(path, topic=topic or None)
+                if not drive_link:
+                    drive_error = "Drive upload returned no link"
+            except Exception as e:
+                drive_error = str(e)
+
     JOBS[job_id]["progress"] = 0.90
     return {
         "success":       True,
         "image_path":    path,
         "public_url":    f"/generated/{Path(path).name}",
         "upload_result": upload_result,
+        "drive_link":    drive_link,
+        "drive_error":   drive_error,
     }
 
 
@@ -542,12 +623,22 @@ def _bulk(data: dict, job_id: str) -> dict:
     total    = max(1, len(selected))
     done     = 0
 
+    language = str(data.get("language") or "en").strip().lower()
+    font_en = data.get("font_name_en") or data.get("font_name") or None
+    font_ur = data.get("font_name_ur") or data.get("font_name") or None
+    font_name = font_ur if language in ("ur", "urdu") else font_en
+
     for q in selected:
         JOBS[job_id]["message"]  = f"Generating {done+1}/{total}…"
         JOBS[job_id]["progress"] = 0.10 + 0.80 * (done / total)
         try:
+            quote_src = q.get("quote", "")
+            if language in ("ur", "urdu"):
+                quote_src = q.get("translate") or q.get("quote", "")
+            quote_src = _sanitize_quote_author(quote_src, str(q.get("author", "")))
+
             path = g.generate(
-                quote             = q.get("quote",""),
+                quote             = quote_src,
                 author            = q.get("author",""),
                 style             = data.get("style","elegant"),
                 category          = q.get("category",""),
@@ -556,13 +647,15 @@ def _bulk(data: dict, job_id: str) -> dict:
                 watermark_opacity = float(data.get("watermark_opacity") or 0.7),
                 watermark_blend   = str(data.get("watermark_blend") or "normal"),
                 avatar_position   = str(data.get("avatar_position") or "top-left"),
-                font_name         = data.get("font_name") or None,
+                font_name         = font_name,
                 quote_font_size   = int(data.get("quote_font_size") or 52),
                 author_font_size  = int(data.get("author_font_size") or 30),
                 watermark_size_percent = float(data.get("watermark_size_percent") or 0.15),
                 watermark_position= "bottom-right",
                 background_mode   = str(data.get("background_mode") or "none"),
                 ai_model          = data.get("ai_model") or None,
+                hf_api_key        = data.get("hf_api_key") or None,
+                language          = language,
             )
             if sr and q.get("_row") and topic:
                 abs_url = f"http://localhost:8000/generated/{Path(path).name}"
@@ -575,6 +668,39 @@ def _bulk(data: dict, job_id: str) -> dict:
         done += 1
 
     return {"success": True, "generated": done}
+
+
+@app.route("/api/drive/upload", methods=["POST"])
+def api_drive_upload():
+    data = request.get_json() or {}
+    filenames = data.get("filenames") or []
+    topic = str(data.get("topic") or "").strip() or None
+    if isinstance(filenames, str):
+        filenames = [filenames]
+    filenames = [str(x) for x in filenames if str(x).strip()]
+    if not filenames:
+        return jsonify({"ok": False, "error": "No filenames provided"}), 400
+
+    du = get_drive()
+    if not du:
+        return jsonify({"ok": False, "error": "Drive uploader not available"}), 503
+
+    out = []
+    for fn in filenames:
+        p = (BASE_DIR / "Generated_Images" / fn).resolve()
+        if not p.exists():
+            out.append({"filename": fn, "ok": False, "error": "File not found"})
+            continue
+        try:
+            link = du.upload_image(str(p), topic=topic)
+            if link:
+                out.append({"filename": fn, "ok": True, "link": link})
+            else:
+                out.append({"filename": fn, "ok": False, "error": "No link returned"})
+        except Exception as e:
+            out.append({"filename": fn, "ok": False, "error": str(e)})
+
+    return jsonify({"ok": True, "results": out})
 
 # ══════════════════════════════════════════════════════════════════════════════
 #  STAGE 4 — POST  (placeholder)

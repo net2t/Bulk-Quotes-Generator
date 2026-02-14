@@ -1,0 +1,831 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>QuoteMaster v{{ app_version }}</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+*{margin:0;padding:0;box-sizing:border-box}
+:root{
+  --bg:#070a0f;
+  --surface:#0c111a;
+  --panel:rgba(255,255,255,.055);
+  --panel2:rgba(255,255,255,.085);
+  --border:rgba(255,255,255,.10);
+  --border2:rgba(255,255,255,.18);
+  --text:#e8eefc;
+  --muted:rgba(232,238,252,.56);
+  --teal:#22d3ee;
+  --orange:#fb923c;
+  --violet:#a78bfa;
+  --green:#34d399;
+  --red:#fb7185;
+  --teal-s:rgba(34,211,238,.14);
+  --orange-s:rgba(251,146,60,.14);
+  --r:14px;
+  --font:'JetBrains Mono',monospace;
+  --font2:'Syne',system-ui,sans-serif;
+}
+body{background:var(--bg);color:var(--text);font-family:var(--font);font-size:14px;min-height:100vh;overflow-x:hidden}
+body::before{content:'';position:fixed;inset:0;pointer-events:none;z-index:0;
+  background:
+    radial-gradient(ellipse 900px 600px at 5% 0%,rgba(34,211,238,.20),transparent 60%),
+    radial-gradient(ellipse 700px 500px at 95% 100%,rgba(251,146,60,.18),transparent 60%),
+    radial-gradient(ellipse 520px 420px at 55% 46%,rgba(167,139,250,.08),transparent 60%)}
+.wrap{position:relative;z-index:1;display:flex;flex-direction:column;min-height:100vh}
+
+/* ── Top bar ── */
+.topbar{display:flex;align-items:center;gap:12px;padding:14px 24px;
+  border-bottom:1px solid var(--border);backdrop-filter:blur(16px);
+  position:sticky;top:0;z-index:100;background:rgba(7,10,15,.72)}
+.logo{font-size:19px;font-weight:800;letter-spacing:-.6px;display:flex;align-items:center;gap:8px;font-family:var(--font2)}
+.logo b{background:linear-gradient(90deg,var(--teal),var(--orange));-webkit-background-clip:text;-webkit-text-fill-color:transparent}
+.ver{font-size:11px;padding:3px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--border);color:var(--muted)}
+.conn{margin-left:auto;font-size:12px;padding:5px 14px;border-radius:99px;border:1px solid var(--border)}
+.conn.ok{color:var(--green);border-color:rgba(52,211,153,.3);background:rgba(52,211,153,.08)}
+.conn.err{color:var(--red);border-color:rgba(248,113,113,.3);background:rgba(248,113,113,.08)}
+.conn.warn{color:var(--orange);border-color:rgba(249,115,22,.3);background:rgba(249,115,22,.08)}
+
+/* ── Pipeline nav ── */
+.pipe{display:flex;padding:0 24px;border-bottom:1px solid var(--border);overflow-x:auto;gap:0}
+.ptab{display:flex;align-items:center;gap:8px;padding:13px 20px;cursor:pointer;white-space:nowrap;
+  border-bottom:2px solid transparent;color:var(--muted);font-weight:500;transition:all .2s}
+.ptab:hover{color:var(--text)}
+.ptab.active{color:var(--teal);border-color:var(--teal)}
+.ptab .n{width:21px;height:21px;border-radius:99px;display:flex;align-items:center;justify-content:center;
+  font-size:11px;font-weight:700;background:var(--panel2);border:1px solid var(--border)}
+.ptab.active .n{background:var(--teal);color:#000;border-color:var(--teal)}
+.parr{color:var(--border2);padding:13px 4px;display:flex;align-items:center;font-size:16px}
+
+/* ── Main ── */
+.main{flex:1;padding:22px;max-width:1380px;margin:0 auto;width:100%}
+.stage{display:none}.stage.on{display:block}
+
+/* ── Cards ── */
+.card{background:linear-gradient(180deg,rgba(255,255,255,.065),rgba(255,255,255,.04));border:1px solid var(--border);border-radius:var(--r);
+  padding:20px;backdrop-filter:blur(10px);margin-bottom:16px;box-shadow:0 18px 50px rgba(0,0,0,.25)}
+.ct{font-weight:700;font-size:14px;margin-bottom:14px;display:flex;align-items:center;gap:8px;font-family:var(--font2);letter-spacing:-.2px}
+.ct .ic{font-size:17px}
+
+/* ── Grids ── */
+.g2{display:grid;grid-template-columns:1fr 1fr;gap:16px}
+.g3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:14px}
+.g4{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+
+/* ── Stats ── */
+.stat-row{display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap}
+.stat{flex:1;min-width:120px;background:var(--panel2);border:1px solid var(--border);
+  border-radius:12px;padding:16px;text-align:center}
+.stat .v{font-size:26px;font-weight:800;margin-bottom:4px}
+.stat .l{font-size:12px;color:var(--muted)}
+.stat.t .v{color:var(--teal)}.stat.o .v{color:var(--orange)}
+.stat.v2 .v{color:var(--violet)}.stat.g .v{color:var(--green)}
+
+/* ── Forms ── */
+label{display:block;font-size:11px;font-weight:700;color:var(--muted);margin-bottom:5px;text-transform:uppercase;letter-spacing:.5px}
+input,select,textarea{width:100%;padding:9px 13px;border-radius:9px;
+  background:rgba(255,255,255,.06);border:1px solid var(--border2);
+  color:var(--text);font-family:var(--font);font-size:13px;outline:none;transition:border .2s,box-shadow .2s}
+input:focus,select:focus,textarea:focus{border-color:var(--teal);box-shadow:0 0 0 3px rgba(20,184,166,.18)}
+select option{background:#1a1a2e;color:var(--text)}
+.field{margin-bottom:12px}
+.hint{font-size:11px;color:var(--muted);margin-top:4px}
+
+/* ── Buttons ── */
+.btn{display:inline-flex;align-items:center;gap:7px;padding:9px 18px;border-radius:9px;
+  font-size:13px;font-weight:600;cursor:pointer;border:none;transition:all .2s}
+.btn-p{background:linear-gradient(135deg,var(--teal),var(--orange));color:#000}
+.btn-p:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 8px 20px rgba(20,184,166,.3)}
+.btn-p:disabled{opacity:.4;cursor:not-allowed}
+.btn-o{background:transparent;border:1px solid var(--border2);color:var(--text)}
+.btn-o:hover{border-color:var(--teal);color:var(--teal)}
+.btn-sm{padding:5px 12px;font-size:12px;border-radius:7px}
+.btn-full{width:100%;justify-content:center;margin-top:8px}
+
+/* ── Progress ── */
+.prog{height:7px;background:rgba(255,255,255,.07);border-radius:99px;overflow:hidden;margin:8px 0;display:none}
+.progb{height:100%;width:0;border-radius:99px;background:linear-gradient(90deg,var(--teal),var(--orange));transition:width .3s}
+
+/* ── Category chips ── */
+.chips{display:flex;flex-wrap:wrap;gap:7px;margin-bottom:14px}
+.chip{padding:5px 13px;border-radius:99px;font-size:12px;font-weight:500;cursor:pointer;
+  background:var(--panel2);border:1px solid var(--border);color:var(--muted);transition:all .15s;user-select:none}
+.chip:hover,.chip.sel{background:var(--teal-s);border-color:var(--teal);color:var(--teal)}
+
+/* ── Log ── */
+.log{background:rgba(0,0,0,.35);border:1px solid var(--border);border-radius:9px;
+  padding:11px 13px;font-family:'Consolas',monospace;font-size:12px;
+  max-height:180px;overflow-y:auto;line-height:1.8}
+.log .ok{color:var(--green)}.log .warn{color:var(--orange)}.log .err{color:var(--red)}
+
+/* ── Quote cards (Review) ── */
+.qgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(300px,1fr));gap:11px}
+.qcard{background:var(--panel2);border:1px solid var(--border);border-radius:12px;
+  padding:15px;cursor:pointer;transition:all .15s;position:relative}
+.qcard:hover{border-color:var(--border2);transform:translateY(-1px)}
+.qcard.sel{border-color:var(--teal);background:var(--teal-s)}
+.qcard .qt{font-size:13px;line-height:1.6;font-style:italic;margin-bottom:9px}
+.qcard .qm{font-size:11px;color:var(--muted);display:flex;gap:10px;flex-wrap:wrap}
+.qcard .cb{position:absolute;top:11px;right:11px;width:19px;height:19px;
+  border-radius:5px;border:1px solid var(--border2);display:flex;align-items:center;
+  justify-content:center;font-size:11px}
+.qcard.sel .cb{background:var(--teal);border-color:var(--teal);color:#000}
+
+/* ── Toolbar ── */
+.tbar{display:flex;align-items:center;gap:9px;margin-bottom:14px;flex-wrap:wrap}
+.tbar-r{margin-left:auto;font-size:12px;color:var(--muted)}
+
+/* ── Style cards ── */
+.sgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(105px,1fr));gap:9px;margin-bottom:14px}
+.scard{padding:14px 8px;border:2px solid var(--border);border-radius:11px;text-align:center;
+  cursor:pointer;transition:all .2s;background:var(--panel)}
+.scard:hover{border-color:var(--teal);transform:translateY(-2px)}
+.scard.sel{border-color:var(--teal);background:var(--teal-s)}
+.scard .si{font-size:22px;margin-bottom:5px}
+.scard .sl{font-size:11px;font-weight:600}
+
+/* ── Preview ── */
+.prev-box{background:rgba(0,0,0,.4);border:1px solid var(--border);border-radius:11px;
+  padding:18px;min-height:120px}
+.prev-box .pq{font-size:15px;font-style:italic;line-height:1.7;margin-bottom:10px}
+.prev-box .pa{font-size:12px;color:var(--muted);text-align:right}
+
+/* ── Image grid ── */
+.igrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(150px,1fr));gap:10px}
+.ithumb{border-radius:9px;overflow:hidden;border:1px solid var(--border);
+  background:var(--panel);aspect-ratio:1;position:relative;cursor:pointer}
+.ithumb img{width:100%;height:100%;object-fit:cover;display:block}
+.ithumb .iov{position:absolute;inset:0;background:rgba(0,0,0,.6);opacity:0;
+  transition:.2s;display:flex;align-items:center;justify-content:center;font-size:20px}
+.ithumb:hover .iov{opacity:1}
+
+/* ── Platform cards ── */
+.pcard{border:1px solid var(--border);border-radius:12px;padding:18px;text-align:center;
+  background:var(--panel);position:relative}
+.pcard .pi{font-size:30px;margin-bottom:7px}
+.pcard .pn{font-weight:700;margin-bottom:3px}
+.pcard .ps{font-size:12px;color:var(--muted)}
+.pcard .soon{position:absolute;top:9px;right:9px;font-size:10px;padding:2px 8px;
+  border-radius:99px;background:rgba(167,139,250,.18);color:var(--violet);
+  border:1px solid rgba(167,139,250,.3);font-weight:700}
+
+/* ── Toast ── */
+.toast{position:fixed;bottom:22px;right:22px;z-index:999;
+  padding:11px 18px;border-radius:11px;font-size:13px;font-weight:600;
+  background:var(--panel2);border:1px solid var(--border2);backdrop-filter:blur(14px);
+  transform:translateY(70px);opacity:0;transition:all .3s;max-width:340px}
+.toast.on{transform:translateY(0);opacity:1}
+.toast.ok{border-color:rgba(52,211,153,.4);color:var(--green)}
+.toast.err{border-color:rgba(248,113,113,.4);color:var(--red)}
+
+/* ── Spinner ── */
+.spin{display:inline-block;width:14px;height:14px;border-radius:50%;
+  border:2px solid rgba(255,255,255,.2);border-top-color:var(--teal);
+  animation:sp .7s linear infinite;vertical-align:middle}
+@keyframes sp{to{transform:rotate(360deg)}}
+
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:transparent}
+::-webkit-scrollbar-thumb{background:rgba(255,255,255,.14);border-radius:99px}
+@media(max-width:768px){.g2,.g3,.g4{grid-template-columns:1fr}.main{padding:14px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ── Top bar ───────────────────────────────────────────── -->
+<header class="topbar">
+  <div class="logo">🎑 <b>QuoteMaster</b></div>
+  <span class="ver">v{{ app_version }}</span>
+  <div class="conn err" id="conn">⏳ Connecting…</div>
+</header>
+
+<!-- ── Pipeline tabs ──────────────────────────────────────── -->
+<nav class="pipe">
+  <div class="ptab active" onclick="go(0)" id="t0"><span class="n">1</span>📥 Collect</div>
+  <div class="parr">›</div>
+  <div class="ptab" onclick="go(1)" id="t1"><span class="n">2</span>✅ Review</div>
+  <div class="parr">›</div>
+  <div class="ptab" onclick="go(2)" id="t2"><span class="n">3</span>🖼️ Generate</div>
+  <div class="parr">›</div>
+  <div class="ptab" onclick="go(3)" id="t3"><span class="n">4</span>📤 Post</div>
+  <div class="parr">›</div>
+  <div class="ptab" onclick="go(4)" id="t4"><span class="n">5</span>☁️ Drive</div>
+</nav>
+
+<main class="main">
+
+<!-- ══════ STAGE 1 — COLLECT ══════ -->
+<section class="stage on" id="s0">
+  <div class="stat-row">
+    <div class="stat t"><div class="v" id="st-topics">–</div><div class="l">Topics in Sheet</div></div>
+    <div class="stat o"><div class="v" id="st-imgs">–</div><div class="l">Images Generated</div></div>
+    <div class="stat v2"><div class="v" id="st-csvs">–</div><div class="l">CSV Categories</div></div>
+    <div class="stat g"><div class="v" id="st-sys">🟢</div><div class="l">System</div></div>
+  </div>
+
+  <div class="g2">
+    <div class="card">
+      <div class="ct"><span class="ic">🌐</span>Scrape Settings</div>
+      <div class="field">
+        <label>Pages Per Category</label>
+        <input type="number" id="sc-pg" value="1" min="0" max="50">
+        <div class="hint">0 = all pages (slow) · 1 page ≈ 30 quotes · Goodreads has ~100 pages per tag</div>
+      </div>
+      <div class="field">
+        <label>Categories <span style="font-weight:400;text-transform:none">(click to toggle)</span></label>
+        <div class="chips" id="cat-chips">
+          {% for num, name, url in categories %}
+          <div class="chip" data-id="{{ num }}" onclick="toggleCat(this)">{{ name }}</div>
+          {% endfor %}
+        </div>
+        <div style="display:flex;gap:8px">
+          <button class="btn btn-o btn-sm" onclick="selAll()">Select All</button>
+          <button class="btn btn-o btn-sm" onclick="clrAll()">Clear</button>
+        </div>
+      </div>
+      <div style="display:flex;gap:10px;margin-top:14px">
+        <button class="btn btn-p" id="sc-btn" onclick="startScrape()">🚀 Start Scraping</button>
+        <button class="btn btn-o" onclick="go(1)">Go to Review →</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ct"><span class="ic">📋</span>Live Log</div>
+      <div class="prog" id="sc-prog-w"><div class="progb" id="sc-pb"></div></div>
+      <div id="sc-msg" style="font-size:12px;color:var(--muted);margin-bottom:8px">Ready to scrape</div>
+      <div class="log" id="sc-log">Waiting to start…</div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ STAGE 2 — REVIEW ══════ -->
+<section class="stage" id="s1">
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="ct"><span class="ic">📁</span>CSV Files (Scraped Quotes)</div>
+      <div class="chips" id="rev-cats"><span style="color:var(--muted)">Loading…</span></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="ic">📤</span>Push to Google Sheet</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        Select quotes you want to keep, then push them to your <strong>Database</strong> tab.
+        Duplicates are auto-skipped.
+      </p>
+      <div style="display:flex;align-items:center;gap:12px">
+        <button class="btn btn-p" onclick="pushSel()">📤 Push Selected to Sheet</button>
+        <span id="push-res" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+    </div>
+  </div>
+
+  <div class="tbar">
+    <button class="btn btn-o btn-sm" onclick="selAllRev()">☑ All</button>
+    <button class="btn btn-o btn-sm" onclick="clrRev()">☐ None</button>
+    <button class="btn btn-o btn-sm" onclick="moreRev()">↓ Load More</button>
+    <div class="tbar-r" id="rev-cnt">0 selected · 0 total</div>
+  </div>
+  <div class="qgrid" id="rev-grid">
+    <div style="color:var(--muted);padding:20px">Pick a category above to load quotes.</div>
+  </div>
+</section>
+
+<!-- ══════ STAGE 3 — GENERATE ══════ -->
+<section class="stage" id="s2">
+  <div class="g2">
+    <!-- Left col -->
+    <div>
+      <div class="card">
+        <div class="ct"><span class="ic">💬</span>Quote Selection</div>
+        <div class="field"><label>Topic (from Sheet)</label>
+          <select id="g-topic" onchange="loadGenQ()"><option value="">Choose topic…</option></select>
+        </div>
+        <div class="field"><label>Quote</label>
+          <select id="g-quote" onchange="pickQ()"><option value="">Choose quote…</option></select>
+        </div>
+        <div class="field">
+          <label>Language</label>
+          <select id="g-lang" onchange="applyLangPreview()">
+            <option value="en">English</option>
+            <option value="ur">Urdu</option>
+          </select>
+          <div class="hint">Urdu uses the <code>TRANSLATE</code> column (or auto-translate if empty).</div>
+        </div>
+        <div class="prev-box">
+          <div class="pq" id="pq" style="color:var(--muted)">Select a quote to preview…</div>
+          <div class="pa" id="pa"></div>
+        </div>
+        <div style="display:flex;gap:10px;margin-top:12px">
+          <button class="btn btn-o btn-sm" onclick="translateSelected()">🌐 Auto Translate to Urdu</button>
+          <div class="hint" id="tr-h" style="margin:0;align-self:center"></div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><span class="ic">⚙️</span>Settings</div>
+        <div class="g2">
+          <div class="field"><label>Quote Font Size</label><input type="number" id="g-qfs" value="52" min="24" max="120"></div>
+          <div class="field"><label>Author Font Size</label><input type="number" id="g-afs" value="30" min="14" max="80"></div>
+          <div class="field"><label>Watermark Opacity</label><input type="number" id="g-wop" value="0.7" min="0" max="1" step="0.05"></div>
+          <div class="field"><label>Watermark Size %</label><input type="number" id="g-wsz" value="15" min="5" max="40"></div>
+          <div class="field"><label>Blend Mode</label>
+            <select id="g-blend"><option>normal</option><option>multiply</option><option>screen</option><option>overlay</option></select>
+          </div>
+          <div class="field"><label>Avatar Position</label>
+            <select id="g-avp"><option value="top-left">Top Left</option><option value="top-right">Top Right</option><option value="bottom-left">Bottom Left</option><option value="bottom-right">Bottom Right</option></select>
+          </div>
+          <div class="field"><label>Background Mode</label>
+            <select id="g-bgm"><option value="none">None</option><option value="custom">Custom</option><option value="ai">AI (HuggingFace)</option></select>
+          </div>
+          <div class="field"><label>AI Model</label>
+            <select id="g-aim"><option value="stable_diffusion">Stable Diffusion</option><option value="openjourney">OpenJourney</option><option value="realistic">Realistic Vision</option></select>
+          </div>
+          <div class="field"><label>Font (English)</label><select id="g-font-en"><option value="">Default</option></select></div>
+          <div class="field"><label>Font (Urdu)</label><select id="g-font-ur"><option value="">Default</option></select></div>
+          <div class="field"><label>HuggingFace API Key</label><input type="password" id="g-hf" placeholder="hf_xxxxx / or leave empty"></div>
+          <div class="field"><label>Bulk Count</label><input type="number" id="g-bulk" value="5" min="1" max="200"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Right col -->
+    <div>
+      <div class="card">
+        <div class="ct"><span class="ic">🎨</span>Design Style</div>
+        <div class="sgrid" id="sgrid">
+          {% for s in styles %}
+          <div class="scard {% if loop.first %}sel{% endif %}" data-style="{{ s.id }}" onclick="pickStyle('{{s.id}}',this)">
+            <div class="si">{{ s.icon }}</div><div class="sl">{{ s.label }}</div>
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="ct"><span class="ic">⚡</span>Generate</div>
+        <div class="prog" id="gen-pw"><div class="progb" id="gen-pb"></div></div>
+        <div id="gen-msg" style="font-size:12px;color:var(--muted);margin-bottom:12px">Ready</div>
+        <button class="btn btn-p btn-full" id="gen-btn" onclick="genSingle()" disabled>🎨 Generate This Quote</button>
+        <button class="btn btn-o btn-full" id="bulk-btn" onclick="genBulk()" disabled>🚀 Bulk Generate (whole topic)</button>
+
+        <div style="margin-top:16px">
+          <div class="ct" style="margin-bottom:10px"><span class="ic">🖼️</span>Recent Output</div>
+          <div class="igrid" id="rec-imgs">
+            <div style="color:var(--muted);font-size:12px;grid-column:1/-1;padding:8px">Images appear here after generation.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ STAGE 4 — POST ══════ -->
+<section class="stage" id="s3">
+  <div style="margin-bottom:18px">
+    <div style="display:inline-flex;align-items:center;gap:10px;padding:10px 18px;border-radius:99px;
+      background:rgba(167,139,250,.1);border:1px solid rgba(167,139,250,.25)">
+      <span>🚧</span><span style="color:var(--violet);font-weight:600">Posting coming soon — infrastructure is ready. Platforms will connect here.</span>
+    </div>
+  </div>
+  <div class="g4" style="margin-bottom:20px">
+    {% set platforms=[("📸","Instagram"),("👥","Facebook"),("🐦","X / Twitter"),("📌","Pinterest")] %}
+    {% for ico,name in platforms %}
+    <div class="pcard">
+      <div class="soon">SOON</div>
+      <div class="pi">{{ico}}</div>
+      <div class="pn">{{name}}</div>
+      <div class="ps">Not connected</div>
+      <button class="btn btn-o btn-sm btn-full" style="margin-top:10px" disabled>Connect</button>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="card">
+    <div class="ct"><span class="ic">🖼️</span>Generated Images — Ready to Post</div>
+    <div class="igrid" id="post-grid"><div style="color:var(--muted);font-size:13px;grid-column:1/-1">Loading…</div></div>
+  </div>
+</section>
+
+<!-- ══════ STAGE 5 — DRIVE UPLOAD ══════ -->
+<section class="stage" id="s4">
+  <div class="g2" style="margin-bottom:14px">
+    <div class="card">
+      <div class="ct"><span class="ic">☁️</span>Google Drive Upload</div>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        Select generated images and upload them to Google Drive. A public share link will be created.
+      </p>
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-o btn-sm" onclick="selAllDrive()">☑ Select All</button>
+        <button class="btn btn-o btn-sm" onclick="clrDrive()">☐ Clear</button>
+        <button class="btn btn-p" onclick="uploadDriveSel()">⬆ Upload Selected</button>
+        <span id="drive-res" style="font-size:12px;color:var(--muted)"></span>
+      </div>
+      <div class="prog" id="drive-pw" style="margin-top:12px"><div class="progb" id="drive-pb"></div></div>
+    </div>
+    <div class="card">
+      <div class="ct"><span class="ic">🧾</span>Upload Log</div>
+      <div class="log" id="drive-log">Waiting…</div>
+    </div>
+  </div>
+  <div class="card">
+    <div class="ct"><span class="ic">🖼️</span>Generated Images</div>
+    <div class="igrid" id="drive-grid"><div style="color:var(--muted);font-size:13px;grid-column:1/-1">Loading…</div></div>
+  </div>
+</section>
+
+</main>
+</div>
+<div class="toast" id="toast"></div>
+
+<script>
+// ── State ─────────────────────────────────────────────────────────────────
+let tab=0, style='{{ styles[0].id }}', curQ=null, allQ=[], revQ=[], revSel=new Set(), revOff=0, revCat='';
+const LIM=40;
+
+// ── Init ──────────────────────────────────────────────────────────────────
+document.addEventListener('DOMContentLoaded',()=>{
+  loadStats(); loadTopics(); loadFonts(); loadRevCats();
+  setInterval(loadStats,30000);
+});
+
+// ── Tab ───────────────────────────────────────────────────────────────────
+function go(n){
+  document.querySelectorAll('.stage').forEach((s,i)=>s.classList.toggle('on',i===n));
+  document.querySelectorAll('.ptab').forEach((t,i)=>t.classList.toggle('active',i===n));
+  tab=n;
+  if(n===3) loadPostQ();
+  if(n===4) loadDriveQ();
+}
+
+// ── Toast ─────────────────────────────────────────────────────────────────
+function toast(msg,type='ok',ms=3500){
+  const t=document.getElementById('toast');
+  t.textContent=msg; t.className=`toast on ${type}`;
+  setTimeout(()=>t.classList.remove('on'),ms);
+}
+
+// ── Stats ─────────────────────────────────────────────────────────────────
+async function loadStats(){
+  try{
+    const d=await fetch('/api/stats').then(r=>r.json());
+    document.getElementById('st-topics').textContent=d.topics??0;
+    document.getElementById('st-imgs').textContent=d.images??0;
+    document.getElementById('st-csvs').textContent=d.csvs??0;
+    const b=document.getElementById('conn');
+    if(d.sheets_ok && d.imggen_ok){
+      b.textContent='✅ All Systems Ready'; b.className='conn ok';
+    } else if(d.imggen_ok){
+      b.textContent='⚠️ Sheet not connected'; b.className='conn warn';
+    } else {
+      b.textContent='❌ Check credentials & Pillow'; b.className='conn err';
+    }
+  }catch(e){console.warn(e);}
+}
+
+// ══════════════════════════════════════════════════════
+//  STAGE 1 — COLLECT
+// ══════════════════════════════════════════════════════
+function toggleCat(el){el.classList.toggle('sel')}
+function selAll(){document.querySelectorAll('.chip').forEach(c=>c.classList.add('sel'))}
+function clrAll(){document.querySelectorAll('.chip').forEach(c=>c.classList.remove('sel'))}
+
+async function startScrape(){
+  const cats=[...document.querySelectorAll('.chip.sel')].map(c=>+c.dataset.id);
+  if(!cats.length){toast('Select at least one category','err');return;}
+  const pages=parseInt(document.getElementById('sc-pg').value)||1;
+
+  const btn=document.getElementById('sc-btn');
+  btn.disabled=true; btn.innerHTML='<span class="spin"></span> Scraping…';
+  document.getElementById('sc-prog-w').style.display='block';
+  document.getElementById('sc-log').innerHTML='<span class="ok">Starting…</span>';
+
+  const res=await fetch('/api/scrape/start',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({categories:cats,page_limit:pages})
+  }).then(r=>r.json());
+
+  if(!res.ok){toast('Start failed: '+res.error,'err');resetBtn();return;}
+  pollScrape(res.job_id);
+}
+
+function pollScrape(jid){
+  fetch('/api/scrape/log').then(r=>r.json()).then(d=>{
+    if(d.log.length){
+      document.getElementById('sc-log').innerHTML=
+        d.log.map(l=>`<div class="${l.type||'ok'}">${l.msg}</div>`).join('');
+      document.getElementById('sc-log').scrollTop=9999;
+    }
+    fetch(`/api/job/status/${jid}`).then(r=>r.json()).then(s=>{
+      document.getElementById('sc-pb').style.width=Math.round((s.progress||0)*100)+'%';
+      document.getElementById('sc-msg').textContent=s.message||'';
+      if(s.status==='done'){
+        toast(`✅ Done — ${s.result?.total||0} quotes saved`);
+        resetBtn(); loadStats(); loadRevCats();
+      } else if(s.status==='error'){
+        toast('Error: '+s.message,'err'); resetBtn();
+      } else setTimeout(()=>pollScrape(jid),1500);
+    });
+  });
+}
+function resetBtn(){
+  const b=document.getElementById('sc-btn');
+  b.disabled=false; b.innerHTML='🚀 Start Scraping';
+}
+
+// ══════════════════════════════════════════════════════
+//  STAGE 2 — REVIEW
+// ══════════════════════════════════════════════════════
+async function loadRevCats(){
+  const d=await fetch('/api/review/categories').then(r=>r.json());
+  const el=document.getElementById('rev-cats');
+  if(!d.categories.length){el.innerHTML='<span style="color:var(--muted);font-size:13px">No CSV files yet. Run scraper first.</span>';return;}
+  el.innerHTML=d.categories.map(c=>
+    `<div class="chip" onclick="loadRevCat('${esc(c.name)}',this)">${esc(c.name)} <span style="opacity:.6">(${c.count})</span></div>`
+  ).join('');
+}
+
+async function loadRevCat(cat,el){
+  document.querySelectorAll('#rev-cats .chip').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+  revCat=cat; revOff=0; revQ=[]; revSel.clear();
+  await fetchRevPage();
+}
+
+async function fetchRevPage(){
+  const d=await fetch(`/api/review/quotes?cat=${encodeURIComponent(revCat)}&offset=${revOff}&limit=${LIM}`).then(r=>r.json());
+  revQ=revQ.concat(d.quotes); revOff+=d.quotes.length;
+  renderRevGrid(); updateRevCnt(d.total);
+}
+
+function renderRevGrid(){
+  const g=document.getElementById('rev-grid');
+  if(!revQ.length){g.innerHTML='<div style="color:var(--muted)">No quotes found.</div>';return;}
+  g.innerHTML=revQ.map((q,i)=>{
+    const s=revSel.has(i);
+    return `<div class="qcard${s?' sel':''}" onclick="togRev(${i},this)">
+      <div class="cb">${s?'✓':''}</div>
+      <div class="qt">"${esc(q.quote)}"</div>
+      <div class="qm"><span>👤 ${esc(q.author||'Unknown')}</span><span>📏 ${q.length||''} chars</span>${q.category?`<span>🏷 ${esc(q.category)}</span>`:''}</div>
+    </div>`;
+  }).join('');
+}
+
+function togRev(i,el){
+  revSel.has(i)?revSel.delete(i):revSel.add(i);
+  el.classList.toggle('sel'); el.querySelector('.cb').textContent=revSel.has(i)?'✓':'';
+  updateRevCnt();
+}
+function selAllRev(){revQ.forEach((_,i)=>revSel.add(i));renderRevGrid();updateRevCnt();}
+function clrRev(){revSel.clear();renderRevGrid();updateRevCnt();}
+function moreRev(){fetchRevPage();}
+function updateRevCnt(tot){
+  document.getElementById('rev-cnt').textContent=`${revSel.size} selected · ${tot||revQ.length} total`;
+}
+
+async function pushSel(){
+  if(!revSel.size){toast('Select quotes first','err');return;}
+  const quotes=[...revSel].map(i=>revQ[i]);
+  const res=await fetch('/api/review/push',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({quotes})
+  }).then(r=>r.json());
+  if(res.ok){
+    toast(`✅ Pushed ${res.pushed} · Skipped ${res.skipped} dupes`);
+    document.getElementById('push-res').textContent=`Last: ${res.pushed} new, ${res.skipped} dupes`;
+  } else toast('Push failed: '+res.error,'err');
+}
+
+// ══════════════════════════════════════════════════════
+//  STAGE 3 — GENERATE
+// ══════════════════════════════════════════════════════
+async function loadTopics(){
+  const d=await fetch('/api/topics').then(r=>r.json());
+  const s=document.getElementById('g-topic');
+  (d.topics||[]).forEach(t=>{const o=document.createElement('option');o.value=t;o.textContent=t;s.appendChild(o);});
+}
+
+async function loadGenQ(){
+  const topic=document.getElementById('g-topic').value;
+  if(!topic)return;
+  const d=await fetch(`/api/quotes/${encodeURIComponent(topic)}`).then(r=>r.json());
+  allQ=d.quotes||[];
+  const s=document.getElementById('g-quote');
+  s.innerHTML='<option value="">Choose quote…</option>';
+  allQ.forEach((q,i)=>{const o=document.createElement('option');o.value=i;o.textContent=`${q.author||'Unknown'} — ${(q.quote||'').substring(0,55)}…`;s.appendChild(o);});
+  document.getElementById('gen-btn').disabled=true;
+  document.getElementById('bulk-btn').disabled=!allQ.length;
+}
+
+function pickQ(){
+  const idx=document.getElementById('g-quote').value;
+  if(idx==='')return;
+  curQ=allQ[parseInt(idx)];
+  applyLangPreview();
+  document.getElementById('gen-btn').disabled=false;
+}
+
+function applyLangPreview(){
+  if(!curQ){
+    document.getElementById('pq').textContent='Select a quote to preview…';
+    document.getElementById('pq').style.color='var(--muted)';
+    document.getElementById('pa').textContent='';
+    return;
+  }
+  const lang=document.getElementById('g-lang').value||'en';
+  const t=(lang==='ur'?(curQ.translate||''):curQ.quote)||curQ.quote||'';
+  document.getElementById('pq').textContent='"'+t+'"';
+  document.getElementById('pq').style.color='';
+  document.getElementById('pa').textContent='— '+(curQ.author||'');
+}
+
+async function translateSelected(){
+  if(!curQ){toast('Select a quote first','err');return;}
+  const h=document.getElementById('tr-h');
+  h.textContent='';
+  if(curQ.translate && curQ.translate.toString().trim()){
+    document.getElementById('g-lang').value='ur';
+    applyLangPreview();
+    toast('Urdu already present for this quote','ok');
+    return;
+  }
+  h.textContent='Translating…';
+  try{
+    const r=await fetch('/api/translate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:curQ.quote,src:'en',dest:'ur'})}).then(x=>x.json());
+    if(!r.ok){h.textContent='';toast('Translate failed: '+(r.error||'error'),'err');return;}
+    curQ.translate=r.translated||'';
+    document.getElementById('g-lang').value='ur';
+    applyLangPreview();
+    h.textContent='';
+    toast('✅ Translated to Urdu (temp in UI)','ok');
+  }catch(e){h.textContent='';toast('Translate error','err');}
+}
+
+function pickStyle(id,el){
+  style=id;
+  document.querySelectorAll('.scard').forEach(c=>c.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+async function loadFonts(){
+  const d=await fetch('/api/fonts').then(r=>r.json());
+  const s1=document.getElementById('g-font-en');
+  const s2=document.getElementById('g-font-ur');
+  (d.fonts||[]).forEach(f=>{
+    const o1=document.createElement('option');o1.value=f;o1.textContent=f+' (Local)';s1.appendChild(o1);
+    const o2=document.createElement('option');o2.value=f;o2.textContent=f+' (Local)';s2.appendChild(o2);
+  });
+}
+
+function gp(extra={}){
+  return {
+    style,
+    language: document.getElementById('g-lang').value||'en',
+    font_name_en: document.getElementById('g-font-en').value||null,
+    font_name_ur: document.getElementById('g-font-ur').value||null,
+    hf_api_key: document.getElementById('g-hf').value||null,
+    quote_font_size: parseInt(document.getElementById('g-qfs').value)||52,
+    author_font_size: parseInt(document.getElementById('g-afs').value)||30,
+    watermark_opacity: parseFloat(document.getElementById('g-wop').value)||0.7,
+    watermark_size_percent: (parseFloat(document.getElementById('g-wsz').value)||15)/100,
+    watermark_blend: document.getElementById('g-blend').value,
+    avatar_position: document.getElementById('g-avp').value,
+    background_mode: document.getElementById('g-bgm').value,
+    ai_model: document.getElementById('g-aim').value,
+    ...extra
+  };
+}
+
+async function genSingle(){
+  if(!curQ)return;
+  const pl=gp({
+    quote:curQ.quote, translate:(curQ.translate||''), author:curQ.author,
+    author_image:curQ.author_image||curQ.image||'',
+    category:curQ.category||'',
+    topic:document.getElementById('g-topic').value,
+    row:curQ._row||null,
+  });
+  await runJob('single',pl);
+}
+
+async function genBulk(){
+  const topic=document.getElementById('g-topic').value;
+  if(!topic){toast('Select a topic first','err');return;}
+  await runJob('bulk',gp({topic,count:parseInt(document.getElementById('g-bulk').value)||5}));
+}
+
+async function runJob(kind,payload){
+  document.getElementById('gen-btn').disabled=true;
+  document.getElementById('bulk-btn').disabled=true;
+  document.getElementById('gen-pw').style.display='block';
+  document.getElementById('gen-msg').textContent='Starting…';
+
+  const res=await fetch('/api/job/start',{
+    method:'POST',headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({kind,payload})
+  }).then(r=>r.json());
+
+  pollJob(res.job_id);
+}
+
+function pollJob(jid){
+  fetch(`/api/job/status/${jid}`).then(r=>r.json()).then(s=>{
+    document.getElementById('gen-pb').style.width=Math.round((s.progress||0)*100)+'%';
+    document.getElementById('gen-msg').textContent=s.message||'';
+    if(s.status==='done'){
+      const r=s.result||{};
+      toast(r.success?`✅ Done! ${r.upload_result||''}`:'Generation failed',r.success?'ok':'err');
+      document.getElementById('gen-pw').style.display='none';
+      document.getElementById('gen-btn').disabled=false;
+      document.getElementById('bulk-btn').disabled=false;
+      loadRecent(); loadStats();
+    } else if(s.status==='error'){
+      toast('Error: '+s.message,'err');
+      document.getElementById('gen-btn').disabled=false;
+      document.getElementById('bulk-btn').disabled=false;
+    } else setTimeout(()=>pollJob(jid),700);
+  });
+}
+
+async function loadRecent(){
+  const d=await fetch('/api/post/queue').then(r=>r.json());
+  const g=document.getElementById('rec-imgs');
+  if(!d.images.length){g.innerHTML='<div style="color:var(--muted);font-size:12px;grid-column:1/-1">No images yet.</div>';return;}
+  g.innerHTML=d.images.slice(0,8).map(im=>
+    `<div class="ithumb" onclick="window.open('${im.url}','_blank')"><img src="${im.url}" loading="lazy"><div class="iov">🔍</div></div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  STAGE 4 — POST
+// ══════════════════════════════════════════════════════
+async function loadPostQ(){
+  const d=await fetch('/api/post/queue').then(r=>r.json());
+  const g=document.getElementById('post-grid');
+  if(!d.images.length){g.innerHTML='<div style="color:var(--muted);font-size:13px;grid-column:1/-1">No images generated yet.</div>';return;}
+  g.innerHTML=d.images.map(im=>
+    `<div class="ithumb" onclick="window.open('${im.url}','_blank')"><img src="${im.url}" loading="lazy"><div class="iov">🔍</div></div>`
+  ).join('');
+}
+
+// ══════════════════════════════════════════════════════
+//  STAGE 5 — DRIVE
+// ══════════════════════════════════════════════════════
+let driveSel=new Set();
+
+async function loadDriveQ(){
+  const d=await fetch('/api/post/queue').then(r=>r.json());
+  const g=document.getElementById('drive-grid');
+  driveSel.clear();
+  if(!d.images.length){g.innerHTML='<div style="color:var(--muted);font-size:13px;grid-column:1/-1">No images generated yet.</div>';return;}
+  g.innerHTML=d.images.map((im,i)=>{
+    const s=driveSel.has(im.filename);
+    return `<div class="ithumb" onclick="togDrive('${esc(im.filename)}',this)">
+      <img src="${im.url}" loading="lazy">
+      <div class="iov">${s?'✓':'⬆'}</div>
+    </div>`;
+  }).join('');
+}
+
+function togDrive(fn,el){
+  if(driveSel.has(fn)) driveSel.delete(fn); else driveSel.add(fn);
+  el.querySelector('.iov').textContent=driveSel.has(fn)?'✓':'⬆';
+}
+function selAllDrive(){
+  document.querySelectorAll('#drive-grid .ithumb').forEach((el)=>{
+    const img=el.querySelector('img');
+    const src=(img.getAttribute('src')||'');
+    const fn=src.split('/').pop();
+    if(fn){driveSel.add(fn); el.querySelector('.iov').textContent='✓';}
+  });
+}
+function clrDrive(){
+  driveSel.clear();
+  document.querySelectorAll('#drive-grid .ithumb .iov').forEach(x=>x.textContent='⬆');
+}
+
+async function uploadDriveSel(){
+  if(!driveSel.size){toast('Select images first','err');return;}
+  document.getElementById('drive-pw').style.display='block';
+  document.getElementById('drive-pb').style.width='15%';
+  document.getElementById('drive-log').textContent='Uploading…';
+  try{
+    const res=await fetch('/api/drive/upload',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({filenames:[...driveSel]})}).then(r=>r.json());
+    if(!res.ok){toast('Upload failed: '+(res.error||'error'),'err');document.getElementById('drive-log').textContent=res.error||'Failed';return;}
+    document.getElementById('drive-pb').style.width='100%';
+    const ok=res.results.filter(x=>x.ok).length;
+    const bad=res.results.filter(x=>!x.ok).length;
+    document.getElementById('drive-res').textContent=`Uploaded: ${ok} · Failed: ${bad}`;
+    document.getElementById('drive-log').innerHTML=res.results.map(r=>r.ok?
+      `<div class="ok">✅ ${esc(r.filename)} → ${esc(r.link||'')}</div>`:
+      `<div class="err">❌ ${esc(r.filename)} → ${esc(r.error||'')}</div>`
+    ).join('');
+    toast('Drive upload done','ok');
+  }catch(e){toast('Upload error','err');}
+  setTimeout(()=>{document.getElementById('drive-pw').style.display='none';document.getElementById('drive-pb').style.width='0';},1200);
+}
+
+// ── Util ──────────────────────────────────────────────────────────────────
+function esc(s){return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');}
+</script>
+</body>
+</html>

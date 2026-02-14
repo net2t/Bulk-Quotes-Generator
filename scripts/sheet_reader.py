@@ -164,6 +164,7 @@ class SheetReader:
                         continue
                     quotes.append({
                         'quote': quote_text,
+                        'translate': _get_any(record, 'TRANSLATE', 'Translate', 'translate', default=''),
                         'author': _get_any(record, 'AUTHOR', 'Author', 'author', default='Unknown'),
                         'category': _get_any(record, 'CATEGORY', 'Category', 'Category ', 'category', default=topic),
                         'tags': _get_any(record, 'TAGS', 'Tags', 'tags', default=''),

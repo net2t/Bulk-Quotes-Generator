@@ -21,7 +21,7 @@ credentials2.json
 Generated_Images/
 Watermarks/
 Export/
-templates/
+# templates/  (tracked in git)
 *.zip
 *.tar
 *.tar.gz

@@ -17,6 +17,15 @@ import math
 import time
 from colorsys import rgb_to_hls, hls_to_rgb
 
+try:
+    import arabic_reshaper
+    from bidi.algorithm import get_display
+    _RTL_OK = True
+except Exception:
+    arabic_reshaper = None
+    get_display = None
+    _RTL_OK = False
+
 class QuoteImageGenerator:
     def __init__(self, output_dir="Generated_Images", watermark_dir="Watermarks"):
         self.output_dir = Path(output_dir)
@@ -230,6 +239,18 @@ class QuoteImageGenerator:
 
         return lines
 
+    def _prep_text(self, text: str, language: str | None = None) -> str:
+        lang = str(language or '').strip().lower()
+        if lang not in ('ur', 'urdu', 'ar', 'arabic'):
+            return str(text or '')
+        if not _RTL_OK:
+            return str(text or '')
+        try:
+            reshaped = arabic_reshaper.reshape(str(text or ''))
+            return get_display(reshaped)
+        except Exception:
+            return str(text or '')
+
     def _pick_watermark_file(self, mode: str = 'corner', style: str = '') -> Path:
         import random
         watermark_files = sorted(self.watermark_dir.glob('*.png'))
@@ -374,11 +395,12 @@ class QuoteImageGenerator:
     def generate(self, quote, author, style='minimal', category='', add_watermark=True, author_image: str = '', 
                  watermark_mode: str = 'corner', watermark_opacity: float = None, watermark_blend: str = 'normal', avatar_position: str = 'top-left', font_name: str = None,
                  quote_font_size: int = None, author_font_size: int = None, watermark_size_percent: float = None, watermark_position: str = 'bottom-right',
-                 background_mode: str = 'none', ai_model: str = None):
+                 background_mode: str = 'none', ai_model: str = None, hf_api_key: str | None = None, language: str | None = None):
         """Generate image and save"""
         prev_regular = self._selected_font_regular_path
         prev_bold = self._selected_font_bold_path
         try:
+            quote = self._prep_text(str(quote or ''), language=language)
             if font_name is not None:
                 self.set_font(str(font_name))
 
@@ -404,6 +426,7 @@ class QuoteImageGenerator:
                     author=str(author or ''),
                     category=str(category or ''),
                     ai_model=str(ai_model) if ai_model else None,
+                    hf_api_key=str(hf_api_key) if hf_api_key else None,
                 )
                 if bg_path:
                     bg_img = self._load_background_image(bg_path)
@@ -482,7 +505,7 @@ class QuoteImageGenerator:
         except Exception:
             return None
 
-    def _resolve_background_path(self, mode: str, quote: str, author: str, category: str, ai_model: str | None = None) -> str | None:
+    def _resolve_background_path(self, mode: str, quote: str, author: str, category: str, ai_model: str | None = None, hf_api_key: str | None = None) -> str | None:
         m = str(mode or 'none').strip().lower()
         if m == 'custom':
             folder = Path('assets') / 'custom_backgrounds'
@@ -505,7 +528,7 @@ class QuoteImageGenerator:
             prompt_gen = AIPromptGenerator()
             prompt_data = prompt_gen.generate_prompt(quote=quote, author=author, category=category)
 
-            generator = AIImageGenerator()
+            generator = AIImageGenerator(api_key=str(hf_api_key) if hf_api_key else None)
             filename = f"ai_generated_{int(time.time())}.png"
             out = generator.generate_image(
                 prompt=str(prompt_data.get('prompt') or ''),

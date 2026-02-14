@@ -1,0 +1,1028 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GH Manager Pro</title>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;600;700&family=Syne:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0c0f;
+  --surface: #111418;
+  --card: #181c22;
+  --border: #2a2f3a;
+  --accent: #58a6ff;
+  --accent2: #3fb950;
+  --accent3: #f78166;
+  --accent4: #d2a8ff;
+  --yellow: #e3b341;
+  --text: #e6edf3;
+  --muted: #7d8590;
+  --danger: #f85149;
+  --log-bg: #0d1117;
+  --sidebar-width: 260px;
+  --log-panel-width: 520px;
+}
+*{box-sizing:border-box;margin:0;padding:0;}
+body{font-family:'JetBrains Mono',monospace;background:var(--bg);color:var(--text);min-height:100vh;overflow-x:hidden;}
+
+/* AUTH */
+#auth-screen{display:flex;align-items:center;justify-content:center;min-height:100vh;background:var(--bg);position:relative;}
+#auth-screen::before{content:'';position:absolute;inset:0;background:radial-gradient(ellipse 60% 40% at 50% 30%,rgba(88,166,255,.08) 0%,transparent 70%);pointer-events:none;}
+.auth-box{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:48px;width:420px;position:relative;box-shadow:0 0 60px rgba(88,166,255,.05),0 24px 48px rgba(0,0,0,.4);}
+.auth-logo{display:flex;align-items:center;gap:12px;margin-bottom:32px;}
+.auth-logo svg{width:36px;height:36px;fill:var(--text);}
+.auth-logo span{font-family:'Syne',sans-serif;font-size:22px;font-weight:800;letter-spacing:-.5px;}
+.auth-title{font-size:14px;color:var(--muted);margin-bottom:24px;line-height:1.6;}
+.auth-box label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase;}
+.auth-box input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:12px 16px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;margin-bottom:20px;outline:none;transition:border-color .2s;}
+.auth-box input:focus{border-color:var(--accent);}
+.btn-primary{width:100%;background:var(--accent);color:#0a0c0f;border:none;border-radius:8px;padding:13px;font-family:'Syne',sans-serif;font-weight:700;font-size:14px;cursor:pointer;letter-spacing:.5px;transition:opacity .2s,transform .1s;}
+.btn-primary:hover{opacity:.9;transform:translateY(-1px);}
+.auth-hint{font-size:11px;color:var(--muted);margin-top:16px;text-align:center;}
+.auth-hint a{color:var(--accent);text-decoration:none;}
+.error-msg{background:rgba(248,81,73,.1);border:1px solid rgba(248,81,73,.3);border-radius:8px;padding:10px 14px;font-size:12px;color:var(--danger);margin-bottom:16px;display:none;}
+
+/* APP LAYOUT */
+#app{display:none;min-height:100vh;}
+.layout{display:flex;min-height:100vh;}
+
+/* SIDEBAR */
+.sidebar{position:fixed;left:0;top:0;bottom:0;width:var(--sidebar-width);background:var(--surface);border-right:1px solid var(--border);display:flex;flex-direction:column;z-index:100;}
+.sidebar-header{padding:20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.sidebar-header svg{width:24px;height:24px;fill:var(--text);flex-shrink:0;}
+.app-name{font-family:'Syne',sans-serif;font-weight:800;font-size:16px;}
+.user-info{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.user-avatar{width:34px;height:34px;border-radius:50%;background:var(--border);object-fit:cover;}
+.user-name{font-size:13px;font-weight:600;}
+.user-handle{font-size:11px;color:var(--muted);}
+.nav-section{padding:12px 0;}
+.nav-label{font-size:10px;color:var(--muted);letter-spacing:1.5px;text-transform:uppercase;padding:6px 20px;margin-bottom:4px;}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 20px;cursor:pointer;color:var(--muted);font-size:13px;border-left:2px solid transparent;transition:all .15s;}
+.nav-item:hover{color:var(--text);background:rgba(255,255,255,.03);}
+.nav-item.active{color:var(--accent);border-left-color:var(--accent);background:rgba(88,166,255,.05);}
+.nav-item svg{width:16px;height:16px;flex-shrink:0;}
+.nav-badge{margin-left:auto;background:var(--accent);color:#000;font-size:10px;font-weight:700;padding:1px 6px;border-radius:10px;}
+.sidebar-footer{margin-top:auto;padding:16px 20px;border-top:1px solid var(--border);}
+.btn-logout{width:100%;background:transparent;border:1px solid var(--border);border-radius:8px;padding:8px;color:var(--muted);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;transition:all .2s;}
+.btn-logout:hover{border-color:var(--danger);color:var(--danger);}
+
+/* MAIN CONTENT */
+.main{margin-left:var(--sidebar-width);padding:32px;min-height:100vh;transition:margin-right .3s;}
+.main.log-open{margin-right:var(--log-panel-width);}
+.page{display:none;}
+.page.active{display:block;}
+.page-title{font-family:'Syne',sans-serif;font-size:24px;font-weight:800;margin-bottom:8px;}
+.page-sub{font-size:13px;color:var(--muted);margin-bottom:28px;}
+
+/* CARDS */
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;margin-bottom:16px;transition:border-color .2s;}
+.card:hover{border-color:rgba(88,166,255,.3);}
+
+/* REPOS GRID */
+.repos-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(320px,1fr));gap:16px;}
+.repo-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:20px;cursor:pointer;transition:all .2s;position:relative;overflow:hidden;}
+.repo-card::before{content:'';position:absolute;top:0;left:0;right:0;height:2px;background:linear-gradient(90deg,var(--accent),var(--accent4));opacity:0;transition:opacity .2s;}
+.repo-card:hover{border-color:rgba(88,166,255,.4);transform:translateY(-2px);box-shadow:0 8px 24px rgba(0,0,0,.3);}
+.repo-card:hover::before{opacity:1;}
+.repo-name{font-family:'Syne',sans-serif;font-weight:700;font-size:15px;color:var(--accent);margin-bottom:8px;}
+.repo-desc{font-size:12px;color:var(--muted);margin-bottom:14px;line-height:1.5;min-height:36px;}
+.repo-meta{display:flex;gap:16px;flex-wrap:wrap;}
+.repo-tag{display:flex;align-items:center;gap:5px;font-size:11px;color:var(--muted);}
+.repo-tag svg{width:13px;height:13px;}
+.lang-dot{width:10px;height:10px;border-radius:50%;}
+.private-badge{background:rgba(227,179,65,.1);border:1px solid rgba(227,179,65,.3);color:var(--yellow);font-size:10px;padding:2px 8px;border-radius:20px;margin-left:auto;}
+
+/* SEARCH/TOOLBAR */
+.search-bar{display:flex;gap:12px;margin-bottom:24px;align-items:center;}
+.search-input{flex:1;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 16px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;outline:none;transition:border-color .2s;}
+.search-input:focus{border-color:var(--accent);}
+.btn-sm{background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 16px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;cursor:pointer;transition:all .2s;white-space:nowrap;}
+.btn-sm:hover{border-color:var(--accent);color:var(--accent);}
+.btn-accent{background:var(--accent);color:#000;border-color:var(--accent);font-weight:700;}
+.btn-accent:hover{background:#79bcff;color:#000;border-color:#79bcff;}
+.btn-green{background:rgba(63,185,80,.15);color:var(--accent2);border-color:rgba(63,185,80,.3);}
+.btn-green:hover{background:rgba(63,185,80,.25);border-color:var(--accent2);color:var(--accent2);}
+.btn-red{background:rgba(248,81,73,.1);color:var(--danger);border-color:rgba(248,81,73,.3);}
+.btn-red:hover{background:rgba(248,81,73,.2);border-color:var(--danger);color:var(--danger);}
+.btn-yellow{background:rgba(227,179,65,.1);color:var(--yellow);border-color:rgba(227,179,65,.3);}
+.btn-yellow:hover{background:rgba(227,179,65,.2);border-color:var(--yellow);color:var(--yellow);}
+.btn-purple{background:rgba(210,168,255,.1);color:var(--accent4);border-color:rgba(210,168,255,.3);}
+.btn-purple:hover{background:rgba(210,168,255,.2);border-color:var(--accent4);color:var(--accent4);}
+
+/* BREADCRUMB */
+.breadcrumb{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:20px;flex-wrap:wrap;}
+.breadcrumb span{color:var(--muted);}
+.breadcrumb a{color:var(--accent);cursor:pointer;text-decoration:none;}
+.breadcrumb a:hover{text-decoration:underline;}
+
+/* FILE LIST */
+.file-list{background:var(--card);border:1px solid var(--border);border-radius:12px;overflow:hidden;}
+.file-item{display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);cursor:pointer;transition:background .15s;font-size:13px;}
+.file-item:last-child{border-bottom:none;}
+.file-item:hover{background:rgba(255,255,255,.03);}
+.file-item svg{width:16px;height:16px;flex-shrink:0;}
+.file-name{flex:1;}
+.file-date{color:var(--muted);font-size:11px;}
+
+/* ISSUES */
+.issue-item{display:flex;align-items:flex-start;gap:14px;padding:16px 20px;border-bottom:1px solid var(--border);transition:background .15s;}
+.issue-item:hover{background:rgba(255,255,255,.02);}
+.issue-icon{width:18px;height:18px;flex-shrink:0;margin-top:2px;}
+.issue-open{color:var(--accent2);}
+.issue-closed{color:var(--accent4);}
+.issue-title{font-size:14px;font-weight:600;cursor:pointer;}
+.issue-title:hover{color:var(--accent);}
+.issue-meta{font-size:11px;color:var(--muted);margin-top:4px;}
+.issue-labels{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px;}
+.issue-label{font-size:10px;padding:2px 8px;border-radius:20px;font-weight:600;}
+
+/* COMMITS */
+.commit-item{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border);transition:background .15s;}
+.commit-item:hover{background:rgba(255,255,255,.02);}
+.commit-avatar{width:32px;height:32px;border-radius:50%;background:var(--border);flex-shrink:0;}
+.commit-msg{flex:1;font-size:13px;font-weight:500;}
+.commit-msg span{color:var(--muted);font-size:11px;display:block;margin-top:2px;}
+.commit-sha{font-size:11px;padding:3px 10px;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.2);border-radius:6px;color:var(--accent);cursor:pointer;}
+.commit-sha:hover{background:rgba(88,166,255,.2);}
+
+/* WORKFLOW ITEMS */
+.workflow-run-item{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border);transition:background .15s;cursor:pointer;}
+.workflow-run-item:hover{background:rgba(255,255,255,.03);}
+.workflow-run-item.selected{background:rgba(88,166,255,.07);border-left:2px solid var(--accent);}
+.status-dot{width:10px;height:10px;border-radius:50%;flex-shrink:0;}
+.status-success{background:var(--accent2);box-shadow:0 0 8px rgba(63,185,80,.4);}
+.status-failure{background:var(--danger);box-shadow:0 0 8px rgba(248,81,73,.4);}
+.status-running{background:var(--yellow);animation:pulse 1s infinite;box-shadow:0 0 8px rgba(227,179,65,.4);}
+.status-skipped,.status-cancelled{background:var(--muted);}
+.status-queued{background:var(--accent4);animation:pulse 1.5s infinite;}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+.workflow-info{flex:1;}
+.workflow-title{font-size:13px;font-weight:600;}
+.workflow-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+.status-badge{font-size:11px;padding:3px 10px;border-radius:20px;font-weight:600;}
+.badge-success{background:rgba(63,185,80,.1);color:var(--accent2);border:1px solid rgba(63,185,80,.3);}
+.badge-failure{background:rgba(248,81,73,.1);color:var(--danger);border:1px solid rgba(248,81,73,.3);}
+.badge-running{background:rgba(227,179,65,.1);color:var(--yellow);border:1px solid rgba(227,179,65,.3);}
+.badge-skipped,.badge-cancelled{background:rgba(125,133,144,.1);color:var(--muted);border:1px solid rgba(125,133,144,.3);}
+.badge-queued{background:rgba(210,168,255,.1);color:var(--accent4);border:1px solid rgba(210,168,255,.3);}
+
+/* WORKFLOW TRIGGER FORM */
+.trigger-box{background:var(--card);border:1px solid rgba(88,166,255,.2);border-radius:12px;padding:20px;margin-bottom:20px;}
+.trigger-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;margin-bottom:12px;color:var(--accent);}
+.trigger-grid{display:grid;grid-template-columns:1fr 1fr auto;gap:12px;align-items:end;}
+.trigger-field label{font-size:10px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;margin-bottom:5px;display:block;}
+.trigger-field select,.trigger-field input{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:12px;outline:none;transition:border-color .2s;}
+.trigger-field select:focus,.trigger-field input:focus{border-color:var(--accent);}
+
+/* STATS */
+.stats-row{display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:12px;margin-bottom:24px;}
+.stat-card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:16px;}
+.stat-value{font-family:'Syne',sans-serif;font-size:26px;font-weight:800;color:var(--accent);}
+.stat-label{font-size:10px;color:var(--muted);margin-top:4px;text-transform:uppercase;letter-spacing:1px;}
+
+/* LOG PANEL (SIDEBAR RIGHT) */
+.log-panel{position:fixed;right:0;top:0;bottom:0;width:var(--log-panel-width);background:var(--log-bg);border-left:1px solid var(--border);display:flex;flex-direction:column;z-index:200;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);}
+.log-panel.open{transform:translateX(0);}
+.log-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:12px;background:var(--surface);}
+.log-header-info{flex:1;}
+.log-header-title{font-family:'Syne',sans-serif;font-size:14px;font-weight:700;}
+.log-header-sub{font-size:11px;color:var(--muted);margin-top:2px;}
+.log-close{background:none;border:1px solid var(--border);border-radius:6px;padding:6px 10px;color:var(--muted);cursor:pointer;font-size:12px;transition:all .2s;}
+.log-close:hover{border-color:var(--danger);color:var(--danger);}
+.log-tabs{display:flex;border-bottom:1px solid var(--border);padding:0 20px;background:var(--surface);}
+.log-tab{padding:10px 16px;font-size:12px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px;}
+.log-tab:hover{color:var(--text);}
+.log-tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+.log-body{flex:1;overflow:hidden;display:flex;flex-direction:column;}
+.log-tab-content{display:none;flex:1;overflow:hidden;}
+.log-tab-content.active{display:flex;flex-direction:column;}
+
+/* LOG STREAM */
+.log-stream{flex:1;overflow-y:auto;padding:16px;font-size:11px;line-height:1.8;font-family:'JetBrains Mono',monospace;}
+.log-step{margin-bottom:12px;}
+.log-step-header{display:flex;align-items:center;gap:8px;padding:6px 10px;background:rgba(255,255,255,.04);border-radius:6px;cursor:pointer;border:1px solid var(--border);transition:background .15s;}
+.log-step-header:hover{background:rgba(255,255,255,.07);}
+.log-step-name{flex:1;font-size:12px;font-weight:600;}
+.log-step-dur{font-size:10px;color:var(--muted);}
+.log-step-toggle{font-size:10px;color:var(--muted);}
+.log-step-lines{padding:8px 0 0 20px;display:none;}
+.log-step-lines.expanded{display:block;}
+.log-line{display:flex;gap:10px;padding:1px 0;}
+.log-line-num{color:var(--border);min-width:30px;text-align:right;user-select:none;}
+.log-line-text{flex:1;white-space:pre-wrap;word-break:break-all;}
+.log-line-text.err{color:var(--danger);}
+.log-line-text.warn{color:var(--yellow);}
+.log-line-text.info{color:var(--accent);}
+.log-line-text.ok{color:var(--accent2);}
+.live-indicator{display:flex;align-items:center;gap:6px;padding:8px 16px;background:rgba(227,179,65,.05);border-bottom:1px solid rgba(227,179,65,.2);font-size:11px;color:var(--yellow);}
+.live-dot{width:6px;height:6px;border-radius:50%;background:var(--yellow);animation:pulse .8s infinite;}
+
+/* ARTIFACTS */
+.artifact-item{display:flex;align-items:center;gap:14px;padding:14px 20px;border-bottom:1px solid var(--border);transition:background .15s;}
+.artifact-item:hover{background:rgba(255,255,255,.02);}
+.artifact-icon{width:36px;height:36px;border-radius:8px;background:rgba(88,166,255,.1);border:1px solid rgba(88,166,255,.2);display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.artifact-icon svg{width:18px;height:18px;color:var(--accent);}
+.artifact-info{flex:1;}
+.artifact-name{font-size:13px;font-weight:600;}
+.artifact-meta{font-size:11px;color:var(--muted);margin-top:3px;}
+
+/* GOOGLE SHEETS EXPORT */
+.export-panel{padding:20px;}
+.export-title{font-family:'Syne',sans-serif;font-size:16px;font-weight:700;margin-bottom:16px;}
+.export-section{margin-bottom:20px;}
+.export-section label{font-size:11px;color:var(--muted);letter-spacing:1px;text-transform:uppercase;display:block;margin-bottom:8px;}
+.export-checkboxes{display:flex;flex-direction:column;gap:8px;}
+.export-check{display:flex;align-items:center;gap:10px;font-size:12px;cursor:pointer;}
+.export-check input{accent-color:var(--accent);}
+.sheets-table-preview{width:100%;border-collapse:collapse;font-size:11px;margin-top:12px;}
+.sheets-table-preview th{background:rgba(63,185,80,.1);color:var(--accent2);padding:6px 10px;text-align:left;border:1px solid rgba(63,185,80,.2);}
+.sheets-table-preview td{padding:5px 10px;border:1px solid var(--border);color:var(--muted);}
+.sheets-table-preview tr:nth-child(even) td{background:rgba(255,255,255,.02);}
+.copy-csv-area{width:100%;background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-family:'JetBrains Mono',monospace;font-size:10px;color:var(--muted);resize:vertical;min-height:120px;outline:none;margin-top:10px;}
+
+/* MODAL */
+.modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:1000;align-items:center;justify-content:center;backdrop-filter:blur(4px);}
+.modal-overlay.open{display:flex;}
+.modal{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:28px;width:500px;max-width:95vw;max-height:85vh;overflow-y:auto;animation:modalIn .2s ease;}
+@keyframes modalIn{from{opacity:0;transform:scale(.95)}to{opacity:1;transform:scale(1)}}
+.modal-title{font-family:'Syne',sans-serif;font-size:18px;font-weight:800;margin-bottom:4px;}
+.modal-sub{font-size:12px;color:var(--muted);margin-bottom:24px;}
+.modal label{display:block;font-size:11px;color:var(--muted);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase;}
+.modal input,.modal textarea,.modal select{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:10px 14px;color:var(--text);font-family:'JetBrains Mono',monospace;font-size:13px;margin-bottom:16px;outline:none;transition:border-color .2s;resize:vertical;}
+.modal input:focus,.modal textarea:focus{border-color:var(--accent);}
+.modal-footer{display:flex;gap:10px;justify-content:flex-end;margin-top:8px;}
+
+/* TABS */
+.tabs{display:flex;gap:0;margin-bottom:24px;border-bottom:1px solid var(--border);}
+.tab{padding:10px 20px;font-size:13px;cursor:pointer;color:var(--muted);border-bottom:2px solid transparent;transition:all .15s;margin-bottom:-1px;}
+.tab:hover{color:var(--text);}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* LOADING */
+.loading{display:flex;align-items:center;justify-content:center;padding:60px;color:var(--muted);flex-direction:column;gap:16px;}
+.spinner{width:32px;height:32px;border:2px solid var(--border);border-top-color:var(--accent);border-radius:50%;animation:spin .8s linear infinite;}
+@keyframes spin{to{transform:rotate(360deg)}}
+.empty-state{text-align:center;padding:60px 20px;color:var(--muted);font-size:14px;}
+.empty-state svg{width:48px;height:48px;margin-bottom:16px;opacity:.3;}
+
+/* TOAST */
+.toast{position:fixed;bottom:24px;right:24px;background:var(--card);border:1px solid var(--border);border-radius:10px;padding:14px 20px;font-size:13px;z-index:9999;transform:translateY(100px);opacity:0;transition:all .3s;max-width:320px;}
+.toast.show{transform:translateY(0);opacity:1;}
+.toast.success{border-color:rgba(63,185,80,.4);color:var(--accent2);}
+.toast.error{border-color:rgba(248,81,73,.4);color:var(--danger);}
+.toast.info{border-color:rgba(88,166,255,.4);color:var(--accent);}
+
+/* SCROLLBAR */
+::-webkit-scrollbar{width:6px;height:6px;}
+::-webkit-scrollbar-track{background:transparent;}
+::-webkit-scrollbar-thumb{background:var(--border);border-radius:3px;}
+::-webkit-scrollbar-thumb:hover{background:var(--muted);}
+</style>
+</head>
+<body>
+
+<!-- AUTH -->
+<div id="auth-screen">
+  <div class="auth-box">
+    <div class="auth-logo">
+      <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+      <span>GH Manager Pro</span>
+    </div>
+    <p class="auth-title">GitHub Personal Access Token enter karein.<br><code>repo</code>, <code>workflow</code>, <code>read:user</code> permissions chahiye.</p>
+    <div class="error-msg" id="auth-error">Token invalid hai ya network error.</div>
+    <label>Personal Access Token</label>
+    <input type="password" id="token-input" placeholder="ghp_xxxxxxxxxxxxxxxxxxxx" autocomplete="off">
+    <button class="btn-primary" onclick="authenticate()">Connect to GitHub</button>
+    <p class="auth-hint">Token banayein: <a href="https://github.com/settings/tokens" target="_blank">github.com/settings/tokens</a></p>
+  </div>
+</div>
+
+<!-- MAIN APP -->
+<div id="app">
+  <div class="layout">
+    <!-- LEFT SIDEBAR -->
+    <div class="sidebar">
+      <div class="sidebar-header">
+        <svg viewBox="0 0 16 16"><path d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.013 8.013 0 0016 8c0-4.42-3.58-8-8-8z"/></svg>
+        <span class="app-name">GH Manager Pro</span>
+      </div>
+      <div class="user-info" id="user-info">
+        <img class="user-avatar" id="user-avatar" src="" alt="">
+        <div>
+          <div class="user-name" id="user-name">Loading...</div>
+          <div class="user-handle" id="user-handle">@...</div>
+        </div>
+      </div>
+      <div class="nav-section">
+        <div class="nav-label">Navigation</div>
+        <div class="nav-item active" onclick="navigate('repos',this)">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M2 2.5A2.5 2.5 0 014.5 0h8.75a.75.75 0 01.75.75v12.5a.75.75 0 01-.75.75h-2.5a.75.75 0 110-1.5h1.75v-2h-8a1 1 0 00-.714 1.7.75.75 0 01-1.072 1.05A2.495 2.495 0 012 11.5v-9zm10.5-1V9h-8c-.356 0-.694.074-1 .208V2.5a1 1 0 011-1h8z"/></svg>
+          Repositories
+          <span class="nav-badge" id="repos-count">0</span>
+        </div>
+        <div class="nav-item" onclick="navigate('files',this)">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M.75 3a.75.75 0 000 1.5h14.5a.75.75 0 000-1.5H.75zM.75 7a.75.75 0 000 1.5h14.5a.75.75 0 000-1.5H.75zM.75 11a.75.75 0 000 1.5h14.5a.75.75 0 000-1.5H.75z"/></svg>
+          File Browser
+        </div>
+        <div class="nav-item" onclick="navigate('issues',this)">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 9.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0z"/></svg>
+          Issues
+        </div>
+        <div class="nav-item" onclick="navigate('commits',this)">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M11.93 8.5a4.002 4.002 0 01-7.86 0H.75a.75.75 0 010-1.5h3.32a4.002 4.002 0 017.86 0h3.32a.75.75 0 010 1.5h-3.32zM8 6a2.5 2.5 0 100 5 2.5 2.5 0 000-5z"/></svg>
+          Commits
+        </div>
+        <div class="nav-item" onclick="navigate('workflows',this)">
+          <svg viewBox="0 0 16 16" fill="currentColor"><path d="M1 3a2 2 0 012-2h10a2 2 0 012 2v7.75a2 2 0 01-2 2H8.5v1.5h1.75a.75.75 0 010 1.5h-4.5a.75.75 0 010-1.5H7.5V12.75H3a2 2 0 01-2-2V3zm2-.5a.5.5 0 00-.5.5v7.75a.5.5 0 00.5.5h10a.5.5 0 00.5-.5V3a.5.5 0 00-.5-.5H3z"/></svg>
+          Workflows
+        </div>
+      </div>
+      <div class="sidebar-footer">
+        <button class="btn-logout" onclick="logout()">⬡ Logout</button>
+      </div>
+    </div>
+
+    <!-- MAIN -->
+    <div class="main" id="main-content">
+
+      <!-- REPOS PAGE -->
+      <div class="page active" id="page-repos">
+        <div class="page-title">Repositories</div>
+        <div class="page-sub">Apke saare GitHub repositories</div>
+        <div class="search-bar">
+          <input class="search-input" id="repo-search" placeholder="Search repositories..." oninput="filterRepos()">
+          <select class="btn-sm" id="repo-sort" onchange="filterRepos()" style="cursor:pointer">
+            <option value="updated">Recently Updated</option>
+            <option value="name">Name A-Z</option>
+            <option value="stars">Stars</option>
+          </select>
+        </div>
+        <div id="repos-container" class="repos-grid"></div>
+      </div>
+
+      <!-- FILES PAGE -->
+      <div class="page" id="page-files">
+        <div class="page-title">File Browser</div>
+        <div class="page-sub">Repository files browse karein</div>
+        <div class="search-bar">
+          <select class="btn-sm" id="files-repo-select" onchange="loadFiles()" style="cursor:pointer;flex:1">
+            <option value="">-- Repository select karein --</option>
+          </select>
+          <select class="btn-sm" id="files-branch-select" onchange="loadFilesByBranch()" style="cursor:pointer">
+            <option value="">Branch</option>
+          </select>
+        </div>
+        <div class="breadcrumb" id="files-breadcrumb"></div>
+        <div id="files-container"></div>
+      </div>
+
+      <!-- ISSUES PAGE -->
+      <div class="page" id="page-issues">
+        <div class="page-title">Issues</div>
+        <div class="page-sub">Issues dekhein aur create karein</div>
+        <div class="search-bar">
+          <select class="btn-sm" id="issues-repo-select" onchange="loadIssues()" style="cursor:pointer;flex:1">
+            <option value="">-- Repository select karein --</option>
+          </select>
+          <div class="tabs" style="border:none;margin-bottom:0">
+            <div class="tab active" id="tab-open" onclick="switchIssueTab('open')">Open</div>
+            <div class="tab" id="tab-closed" onclick="switchIssueTab('closed')">Closed</div>
+          </div>
+          <button class="btn-sm btn-green" onclick="openNewIssueModal()">+ New Issue</button>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden" id="issues-container"></div>
+      </div>
+
+      <!-- COMMITS PAGE -->
+      <div class="page" id="page-commits">
+        <div class="page-title">Commit History</div>
+        <div class="page-sub">Repository ke commits dekhein</div>
+        <div class="search-bar">
+          <select class="btn-sm" id="commits-repo-select" onchange="onCommitsRepoChange()" style="cursor:pointer;flex:1">
+            <option value="">-- Repository select karein --</option>
+          </select>
+          <select class="btn-sm" id="commits-branch-select" onchange="loadCommits()" style="cursor:pointer">
+            <option value="">Default branch</option>
+          </select>
+        </div>
+        <div class="card" style="padding:0;overflow:hidden" id="commits-container"></div>
+      </div>
+
+      <!-- WORKFLOWS PAGE -->
+      <div class="page" id="page-workflows">
+        <div class="page-title">Workflows & Actions</div>
+        <div class="page-sub">Trigger karein, logs dekhein, artifacts download karein, aur Google Sheets export karein</div>
+
+        <!-- Trigger Box -->
+        <div class="trigger-box" id="trigger-box" style="display:none">
+          <div class="trigger-title">⚡ Workflow Trigger</div>
+          <div class="trigger-grid">
+            <div class="trigger-field">
+              <label>Workflow</label>
+              <select id="trigger-workflow-select" style="cursor:pointer">
+                <option value="">-- Select workflow --</option>
+              </select>
+            </div>
+            <div class="trigger-field">
+              <label>Branch / Ref</label>
+              <input type="text" id="trigger-ref" value="main" placeholder="main">
+            </div>
+            <button class="btn-sm btn-green" onclick="triggerWorkflow()" style="height:38px">▶ Run</button>
+          </div>
+        </div>
+
+        <div class="search-bar">
+          <select class="btn-sm" id="workflows-repo-select" onchange="onWorkflowsRepoChange()" style="cursor:pointer;flex:1">
+            <option value="">-- Repository select karein --</option>
+          </select>
+          <button class="btn-sm btn-purple" onclick="openExportPanel()">⬡ Sheets Export</button>
+          <button class="btn-sm" onclick="loadWorkflows()" title="Refresh">↻ Refresh</button>
+        </div>
+
+        <div id="workflows-stats" class="stats-row"></div>
+        <div class="card" style="padding:0;overflow:hidden" id="workflows-container"></div>
+      </div>
+
+    </div><!-- /main -->
+  </div>
+
+  <!-- RIGHT LOG PANEL -->
+  <div class="log-panel" id="log-panel">
+    <div class="log-header">
+      <div class="log-header-info">
+        <div class="log-header-title" id="log-panel-title">Workflow Run</div>
+        <div class="log-header-sub" id="log-panel-sub">Details</div>
+      </div>
+      <button class="log-close" onclick="closeLogPanel()">✕ Close</button>
+    </div>
+    <div class="log-tabs">
+      <div class="log-tab active" onclick="switchLogTab('logs',this)">📋 Logs</div>
+      <div class="log-tab" onclick="switchLogTab('artifacts',this)">📦 Artifacts</div>
+      <div class="log-tab" onclick="switchLogTab('export',this)">📊 Sheets Export</div>
+    </div>
+    <div class="log-body">
+      <!-- LOGS TAB -->
+      <div class="log-tab-content active" id="log-tab-logs">
+        <div class="live-indicator" id="live-indicator" style="display:none">
+          <span class="live-dot"></span> Live streaming...
+        </div>
+        <div class="log-stream" id="log-stream">
+          <div class="loading"><div class="spinner"></div><span>Logs load ho rahi hain...</span></div>
+        </div>
+      </div>
+      <!-- ARTIFACTS TAB -->
+      <div class="log-tab-content" id="log-tab-artifacts">
+        <div style="flex:1;overflow-y:auto" id="artifacts-container">
+          <div class="loading"><div class="spinner"></div><span>Artifacts load ho rahe hain...</span></div>
+        </div>
+      </div>
+      <!-- SHEETS EXPORT TAB -->
+      <div class="log-tab-content" id="log-tab-export">
+        <div class="export-panel" style="overflow-y:auto;flex:1">
+          <div class="export-title">📊 Google Sheets Export</div>
+          <div class="export-section">
+            <label>Export kya karein?</label>
+            <div class="export-checkboxes">
+              <label class="export-check"><input type="checkbox" id="exp-runs" checked> Workflow Runs</label>
+              <label class="export-check"><input type="checkbox" id="exp-jobs"> Jobs Status</label>
+              <label class="export-check"><input type="checkbox" id="exp-artifacts"> Artifacts List</label>
+            </div>
+          </div>
+          <div class="export-section">
+            <label>Preview</label>
+            <div id="sheets-preview"></div>
+          </div>
+          <div class="export-section">
+            <label>CSV Data (Google Sheets mein paste karein)</label>
+            <textarea class="copy-csv-area" id="csv-output" readonly placeholder="Pehle koi run select karein..."></textarea>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="btn-sm btn-green" onclick="generateCSV()" style="flex:1">Generate CSV</button>
+              <button class="btn-sm btn-accent" onclick="copyCSV()" style="flex:1">Copy CSV</button>
+              <button class="btn-sm btn-yellow" onclick="downloadCSV()" style="flex:1">Download</button>
+            </div>
+            <div style="margin-top:12px;padding:12px;background:rgba(88,166,255,.05);border:1px solid rgba(88,166,255,.15);border-radius:8px;font-size:11px;color:var(--muted);line-height:1.7">
+              💡 <strong style="color:var(--accent)">Google Sheets mein import kaise karein:</strong><br>
+              1. CSV copy/download karein<br>
+              2. Google Sheets kholo → File → Import<br>
+              3. Ya directly paste karein (Tab-separated)
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- NEW ISSUE MODAL -->
+<div class="modal-overlay" id="issue-modal">
+  <div class="modal">
+    <div class="modal-title">New Issue</div>
+    <div class="modal-sub" id="new-issue-repo-name">Creating issue</div>
+    <label>Title *</label>
+    <input type="text" id="issue-title-input" placeholder="Issue ka title...">
+    <label>Description</label>
+    <textarea id="issue-body-input" rows="5" placeholder="Detail likhein (Markdown supported)..."></textarea>
+    <div class="modal-footer">
+      <button class="btn-sm" onclick="closeModal('issue-modal')">Cancel</button>
+      <button class="btn-sm btn-green" onclick="submitIssue()">Create Issue</button>
+    </div>
+  </div>
+</div>
+
+<!-- FILE CONTENT MODAL -->
+<div class="modal-overlay" id="file-modal">
+  <div class="modal" style="width:700px;max-width:95vw">
+    <div class="modal-title" id="file-modal-name"></div>
+    <div class="modal-sub" id="file-modal-path"></div>
+    <div style="background:var(--log-bg);border:1px solid var(--border);border-radius:12px;overflow:hidden">
+      <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 16px;border-bottom:1px solid var(--border);background:var(--surface)">
+        <span id="file-modal-size" style="font-size:11px;color:var(--muted)"></span>
+        <button class="btn-sm" onclick="copyFileContent()">Copy</button>
+      </div>
+      <pre style="padding:16px;max-height:450px;overflow-y:auto;font-size:12px;line-height:1.7;white-space:pre-wrap;word-break:break-word" id="file-modal-content"></pre>
+    </div>
+    <div class="modal-footer"><button class="btn-sm" onclick="closeModal('file-modal')">Close</button></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+// ============ STATE ============
+let TOKEN='', USER=null, ALL_REPOS=[], currentIssueTab='open';
+let currentFilesPath=[], currentFilesRepo='';
+let currentWorkflowRepo='', selectedRunId=null, allRunsData=[];
+let logPollInterval=null, currentLogTab='logs';
+
+const LANG_COLORS={JavaScript:'#f1e05a',TypeScript:'#2b7489',Python:'#3572A5',Java:'#b07219','C#':'#178600','C++':'#f34b7d',PHP:'#4F5D95',Ruby:'#701516',Go:'#00ADD8',Rust:'#dea584',Swift:'#ffac45',Kotlin:'#F18E33',HTML:'#e34c26',CSS:'#563d7c',Shell:'#89e051',Vue:'#41b883',Dart:'#00B4AB',R:'#198CE7'};
+
+// ============ API ============
+async function ghFetch(url, opts={}) {
+  const res = await fetch(`https://api.github.com${url}`, {
+    ...opts,
+    headers: { 'Authorization': `token ${TOKEN}`, 'Accept': 'application/vnd.github.v3+json', ...(opts.headers||{}) }
+  });
+  if (!res.ok) throw new Error(`${res.status} ${res.statusText}`);
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+// ============ AUTH ============
+async function authenticate() {
+  TOKEN = document.getElementById('token-input').value.trim();
+  if (!TOKEN) return;
+  try {
+    USER = await ghFetch('/user');
+    document.getElementById('auth-screen').style.display = 'none';
+    document.getElementById('app').style.display = 'block';
+    document.getElementById('user-name').textContent = USER.name || USER.login;
+    document.getElementById('user-handle').textContent = '@' + USER.login;
+    document.getElementById('user-avatar').src = USER.avatar_url;
+    loadAllRepos();
+  } catch(e) {
+    const el = document.getElementById('auth-error');
+    el.textContent = 'Token invalid ya network error: ' + e.message;
+    el.style.display = 'block';
+  }
+}
+document.getElementById('token-input').addEventListener('keydown', e => { if(e.key==='Enter') authenticate(); });
+
+function logout() {
+  TOKEN=''; USER=null; ALL_REPOS=[];
+  document.getElementById('auth-screen').style.display='flex';
+  document.getElementById('app').style.display='none';
+  document.getElementById('token-input').value='';
+  document.getElementById('auth-error').style.display='none';
+  closeLogPanel();
+}
+
+// ============ NAVIGATE ============
+function navigate(page, el) {
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  el.classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-'+page).classList.add('active');
+}
+
+// ============ REPOS ============
+async function loadAllRepos() {
+  setLoading('repos-container','Repositories load ho rahi hain...');
+  try {
+    let page=1, repos=[];
+    while(true) {
+      const batch = await ghFetch(`/user/repos?per_page=100&page=${page}&sort=updated`);
+      repos = repos.concat(batch);
+      if(batch.length<100) break;
+      page++;
+    }
+    ALL_REPOS = repos;
+    document.getElementById('repos-count').textContent = repos.length;
+    populateRepoSelects();
+    renderRepos(repos);
+  } catch(e) { showToast('Repos load error: '+e.message,'error'); }
+}
+
+function populateRepoSelects() {
+  ['files-repo-select','issues-repo-select','commits-repo-select','workflows-repo-select'].forEach(id => {
+    const sel = document.getElementById(id);
+    const first = sel.options[0];
+    sel.innerHTML = '';
+    sel.appendChild(first);
+    ALL_REPOS.forEach(r => {
+      const opt = document.createElement('option');
+      opt.value = r.full_name; opt.textContent = r.full_name;
+      sel.appendChild(opt);
+    });
+  });
+}
+
+function renderRepos(repos) {
+  const c = document.getElementById('repos-container');
+  if(!repos.length){ c.innerHTML='<div class="empty-state"><p>Koi repository nahi mili</p></div>'; return; }
+  c.innerHTML = repos.map(r=>`
+    <div class="repo-card" onclick="openRepoInFiles('${r.full_name}')">
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+        <div class="repo-name">${r.name}</div>
+        ${r.private?'<span class="private-badge">Private</span>':''}
+      </div>
+      <div class="repo-desc">${r.description||'<span style="color:var(--border)">No description</span>'}</div>
+      <div class="repo-meta">
+        ${r.language?`<span class="repo-tag"><span class="lang-dot" style="background:${LANG_COLORS[r.language]||'#ccc'}"></span>${r.language}</span>`:''}
+        <span class="repo-tag"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M8 .25a.75.75 0 01.673.418l1.882 3.815 4.21.612a.75.75 0 01.416 1.279l-3.046 2.97.719 4.192a.75.75 0 01-1.088.791L8 12.347l-3.766 1.98a.75.75 0 01-1.088-.79l.72-4.194L.872 6.374a.75.75 0 01.416-1.28l4.21-.611L7.327.668A.75.75 0 018 .25z"/></svg>${r.stargazers_count}</span>
+        <span class="repo-tag"><svg viewBox="0 0 16 16" fill="currentColor"><path d="M5 3.25a.75.75 0 11-1.5 0 .75.75 0 011.5 0zm0 2.122a2.25 2.25 0 10-1.5 0v.878A2.25 2.25 0 005.75 8.5h1.5v2.128a2.251 2.251 0 101.5 0V8.5h1.5a2.25 2.25 0 002.25-2.25v-.878a2.25 2.25 0 10-1.5 0v.878a.75.75 0 01-.75.75h-4.5A.75.75 0 015 6.25v-.878z"/></svg>${r.forks_count}</span>
+        <span class="repo-tag" style="margin-left:auto;font-size:10px">${timeAgo(r.updated_at)}</span>
+      </div>
+    </div>`).join('');
+}
+
+function filterRepos() {
+  const q = document.getElementById('repo-search').value.toLowerCase();
+  const sort = document.getElementById('repo-sort').value;
+  let f = ALL_REPOS.filter(r => r.name.toLowerCase().includes(q)||(r.description||'').toLowerCase().includes(q));
+  if(sort==='name') f.sort((a,b)=>a.name.localeCompare(b.name));
+  else if(sort==='stars') f.sort((a,b)=>b.stargazers_count-a.stargazers_count);
+  renderRepos(f);
+}
+
+function openRepoInFiles(fullName) {
+  document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
+  document.querySelectorAll('.nav-item')[1].classList.add('active');
+  document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
+  document.getElementById('page-files').classList.add('active');
+  document.getElementById('files-repo-select').value = fullName;
+  loadFiles();
+}
+
+// ============ FILES ============
+async function loadFiles() {
+  const repo = document.getElementById('files-repo-select').value;
+  if(!repo) return;
+  currentFilesRepo = repo;
+  currentFilesPath = [];
+  await loadBranches(repo,'files-branch-select');
+  await loadFilesAtPath(repo,'');
+}
+async function loadFilesByBranch() {
+  if(!currentFilesRepo) return;
+  currentFilesPath=[];
+  await loadFilesAtPath(currentFilesRepo,'');
+}
+async function loadBranches(repo, selectId) {
+  try {
+    const branches = await ghFetch(`/repos/${repo}/branches?per_page=50`);
+    const sel = document.getElementById(selectId);
+    sel.innerHTML='';
+    branches.forEach(b=>{ const o=document.createElement('option'); o.value=b.name; o.textContent=b.name; sel.appendChild(o); });
+  } catch(e){}
+}
+async function loadFilesAtPath(repo, path) {
+  setLoading('files-container','Files load ho rahi hain...');
+  const branch = document.getElementById('files-branch-select').value;
+  try {
+    const bp = branch?`?ref=${branch}`:'';
+    const contents = await ghFetch(`/repos/${repo}/contents/${path}${bp}`);
+    renderBreadcrumb(repo,path);
+    if(!Array.isArray(contents)){ document.getElementById('files-container').innerHTML='<div class="empty-state"><p>File ya binary content</p></div>'; return; }
+    const sorted = [...contents].sort((a,b)=>{ if(a.type==='dir'&&b.type!=='dir')return -1; if(a.type!=='dir'&&b.type==='dir')return 1; return a.name.localeCompare(b.name); });
+    document.getElementById('files-container').innerHTML=`<div class="file-list">
+      ${path?`<div class="file-item" onclick="goUpDir()" style="color:var(--accent)">${folderIcon()} <span class="file-name">.. (Up)</span></div>`:''}
+      ${sorted.map(f=>`<div class="file-item" onclick="${f.type==='dir'?`browseDir('${f.path}')`:`viewFile('${f.path}','${f.name}')`}">
+        ${f.type==='dir'?folderIcon('#e3b341'):fileIcon(f.name)}
+        <span class="file-name">${f.name}</span>
+        <span class="file-date">${f.type==='file'?formatBytes(f.size):''}</span>
+      </div>`).join('')}
+    </div>`;
+  } catch(e){ document.getElementById('files-container').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
+}
+function folderIcon(c='var(--yellow)'){ return `<svg viewBox="0 0 16 16" fill="${c}" style="width:16px;height:16px"><path d="M1.75 1A1.75 1.75 0 000 2.75v10.5C0 14.216.784 15 1.75 15h12.5A1.75 1.75 0 0016 13.25v-8.5A1.75 1.75 0 0014.25 3H7.5a.25.25 0 01-.2-.1l-.9-1.2C6.07 1.26 5.55 1 5 1H1.75z"/></svg>`; }
+function fileIcon(name){ const ext=(name.split('.').pop()||'').toLowerCase(); const clrs={js:'#f1e05a',ts:'#2b7489',py:'#3572A5',html:'#e34c26',css:'#563d7c',md:'#083fa1',json:'#f78166',yml:'#cb171e',yaml:'#cb171e',sh:'#89e051',go:'#00ADD8',rs:'#dea584'}; const c=clrs[ext]||'var(--muted)'; return `<svg viewBox="0 0 16 16" fill="${c}" style="width:16px;height:16px"><path d="M2 1.75C2 .784 2.784 0 3.75 0h6.586c.464 0 .909.184 1.237.513l2.914 2.914c.329.328.513.773.513 1.237v9.586A1.75 1.75 0 0113.25 16h-9.5A1.75 1.75 0 012 14.25V1.75zm1.75-.25a.25.25 0 00-.25.25v12.5c0 .138.112.25.25.25h9.5a.25.25 0 00.25-.25V6h-2.75A1.75 1.75 0 019 4.25V1.5H3.75zm6.75.062V4.25c0 .138.112.25.25.25h2.688a.252.252 0 00-.011-.013L10.513 1.51a.249.249 0 00-.013-.011z"/></svg>`; }
+function goUpDir(){ currentFilesPath.pop(); loadFilesAtPath(currentFilesRepo,currentFilesPath.join('/')); }
+function browseDir(path){ currentFilesPath=path.split('/'); loadFilesAtPath(currentFilesRepo,path); }
+function renderBreadcrumb(repo,path){ const parts=path?path.split('/'):[]; let h=`<a onclick="loadFilesAtPath('${repo}','')">/${repo.split('/')[1]}</a>`; parts.forEach((p,i)=>{ const fp=parts.slice(0,i+1).join('/'); h+=` <span>/</span> <a onclick="loadFilesAtPath('${repo}','${fp}')">${p}</a>`; }); document.getElementById('files-breadcrumb').innerHTML=h; }
+async function viewFile(path,name){ document.getElementById('file-modal-name').textContent=name; document.getElementById('file-modal-path').textContent=path; document.getElementById('file-modal-content').textContent='Loading...'; document.getElementById('file-modal').classList.add('open'); try{ const d=await ghFetch(`/repos/${currentFilesRepo}/contents/${path}`); const c=atob(d.content.replace(/\n/g,'')); document.getElementById('file-modal-content').textContent=c; document.getElementById('file-modal-size').textContent=`${formatBytes(d.size)}`; }catch(e){ document.getElementById('file-modal-content').textContent='Error: '+e.message; } }
+function copyFileContent(){ navigator.clipboard.writeText(document.getElementById('file-modal-content').textContent).then(()=>showToast('Copied!','success')); }
+
+// ============ ISSUES ============
+async function loadIssues(){ const repo=document.getElementById('issues-repo-select').value; if(!repo)return; setLoading('issues-container','Issues load ho rahi hain...'); try{ const issues=await ghFetch(`/repos/${repo}/issues?state=${currentIssueTab}&per_page=50`); renderIssues(issues); }catch(e){ document.getElementById('issues-container').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`; } }
+function switchIssueTab(tab){ currentIssueTab=tab; document.getElementById('tab-open').classList.toggle('active',tab==='open'); document.getElementById('tab-closed').classList.toggle('active',tab==='closed'); loadIssues(); }
+function renderIssues(issues){ const c=document.getElementById('issues-container'); const f=issues.filter(i=>!i.pull_request); if(!f.length){ c.innerHTML='<div class="empty-state"><p>Koi issue nahi mila</p></div>'; return; } c.innerHTML=f.map(i=>`<div class="issue-item"><svg class="issue-icon ${i.state==='open'?'issue-open':'issue-closed'}" viewBox="0 0 16 16" fill="currentColor">${i.state==='open'?'<path d="M8 9.5a1.5 1.5 0 100-3 1.5 1.5 0 000 3z"/><path d="M8 0a8 8 0 100 16A8 8 0 008 0zM1.5 8a6.5 6.5 0 1113 0 6.5 6.5 0 01-13 0z"/>':'<path d="M11.28 6.78a.75.75 0 00-1.06-1.06L7.25 8.69 5.78 7.22a.75.75 0 00-1.06 1.06l2 2a.75.75 0 001.06 0l3.5-3.5z"/><path d="M16 8A8 8 0 110 8a8 8 0 0116 0zm-1.5 0a6.5 6.5 0 11-13 0 6.5 6.5 0 0113 0z"/>'}</svg><div style="flex:1"><div class="issue-title" onclick="window.open('${i.html_url}','_blank')">#${i.number} ${i.title}</div><div class="issue-meta">opened ${timeAgo(i.created_at)} by ${i.user.login}${i.comments?' • 💬 '+i.comments:''}</div>${i.labels.length?'<div class="issue-labels">'+i.labels.map(l=>`<span class="issue-label" style="background:#${l.color}22;color:#${l.color};border:1px solid #${l.color}55">${l.name}</span>`).join('')+'</div>':''}</div><a href="${i.html_url}" target="_blank" class="btn-sm" style="text-decoration:none;font-size:11px">View ↗</a></div>`).join(''); }
+function openNewIssueModal(){ const r=document.getElementById('issues-repo-select').value; if(!r){ showToast('Pehle repo select karein','error'); return; } document.getElementById('new-issue-repo-name').textContent='Repo: '+r; document.getElementById('issue-title-input').value=''; document.getElementById('issue-body-input').value=''; document.getElementById('issue-modal').classList.add('open'); }
+async function submitIssue(){ const r=document.getElementById('issues-repo-select').value; const t=document.getElementById('issue-title-input').value.trim(); const b=document.getElementById('issue-body-input').value.trim(); if(!t){ showToast('Title zaruri hai','error'); return; } try{ await ghFetch(`/repos/${r}/issues`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({title:t,body:b})}); closeModal('issue-modal'); showToast('Issue create ho gaya!','success'); loadIssues(); }catch(e){ showToast('Error: '+e.message,'error'); } }
+
+// ============ COMMITS ============
+async function onCommitsRepoChange(){ const r=document.getElementById('commits-repo-select').value; if(!r)return; await loadBranches(r,'commits-branch-select'); await loadCommits(); }
+async function loadCommits(){ const r=document.getElementById('commits-repo-select').value; if(!r)return; const br=document.getElementById('commits-branch-select').value; setLoading('commits-container','Commits load ho rahi hain...'); try{ const commits=await ghFetch(`/repos/${r}/commits?per_page=40${br?`&sha=${br}`:''}`); renderCommits(commits); }catch(e){ document.getElementById('commits-container').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`; } }
+function renderCommits(commits){ const c=document.getElementById('commits-container'); if(!commits.length){ c.innerHTML='<div class="empty-state"><p>Koi commit nahi mila</p></div>'; return; } c.innerHTML=commits.map(c=>`<div class="commit-item"><img class="commit-avatar" src="${c.author?.avatar_url||'https://github.com/ghost.png'}" alt=""><div class="commit-msg">${c.commit.message.split('\n')[0]}<span>${c.commit.author.name} • ${timeAgo(c.commit.author.date)}</span></div><span class="commit-sha" onclick="window.open('${c.html_url}','_blank')">${c.sha.substring(0,7)}</span></div>`).join(''); }
+
+// ============ WORKFLOWS ============
+async function onWorkflowsRepoChange() {
+  const repo = document.getElementById('workflows-repo-select').value;
+  if(!repo) return;
+  currentWorkflowRepo = repo;
+  document.getElementById('trigger-box').style.display = 'block';
+  await loadWorkflowsList(repo);
+  await loadBranches(repo,'trigger-ref-branch');
+  loadWorkflows();
+}
+
+async function loadWorkflowsList(repo) {
+  try {
+    const data = await ghFetch(`/repos/${repo}/actions/workflows`);
+    const sel = document.getElementById('trigger-workflow-select');
+    sel.innerHTML = '<option value="">-- Select workflow --</option>';
+    (data.workflows||[]).forEach(w => {
+      const o=document.createElement('option'); o.value=w.id; o.textContent=w.name; sel.appendChild(o);
+    });
+  } catch(e){}
+}
+
+async function triggerWorkflow() {
+  const repo = currentWorkflowRepo;
+  const wfId = document.getElementById('trigger-workflow-select').value;
+  const ref = document.getElementById('trigger-ref').value || 'main';
+  if(!wfId){ showToast('Workflow select karein','error'); return; }
+  try {
+    await ghFetch(`/repos/${repo}/actions/workflows/${wfId}/dispatches`, {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({ref})
+    });
+    showToast('✅ Workflow triggered! Thodi der mein list mein aayega.','success');
+    setTimeout(loadWorkflows, 3000);
+  } catch(e){ showToast('Trigger error: '+e.message+' (workflow_dispatch event hona chahiye)','error'); }
+}
+
+async function loadWorkflows() {
+  const repo = document.getElementById('workflows-repo-select').value;
+  if(!repo) return;
+  currentWorkflowRepo = repo;
+  setLoading('workflows-container','Workflow runs load ho rahi hain...');
+  document.getElementById('workflows-stats').innerHTML='';
+  try {
+    const data = await ghFetch(`/repos/${repo}/actions/runs?per_page=30`);
+    allRunsData = data.workflow_runs || [];
+    renderWorkflowStats(allRunsData);
+    renderWorkflowRuns(allRunsData);
+  } catch(e){ document.getElementById('workflows-container').innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
+}
+
+function renderWorkflowStats(runs) {
+  const s=runs.filter(r=>r.conclusion==='success').length;
+  const f=runs.filter(r=>r.conclusion==='failure').length;
+  const rn=runs.filter(r=>r.status==='in_progress').length;
+  const q=runs.filter(r=>r.status==='queued').length;
+  document.getElementById('workflows-stats').innerHTML=`
+    <div class="stat-card"><div class="stat-value" style="color:var(--accent2)">${s}</div><div class="stat-label">Successful</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--danger)">${f}</div><div class="stat-label">Failed</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--yellow)">${rn}</div><div class="stat-label">Running</div></div>
+    <div class="stat-card"><div class="stat-value" style="color:var(--accent4)">${q}</div><div class="stat-label">Queued</div></div>
+    <div class="stat-card"><div class="stat-value">${runs.length}</div><div class="stat-label">Total</div></div>`;
+}
+
+function renderWorkflowRuns(runs) {
+  const c = document.getElementById('workflows-container');
+  if(!runs.length){ c.innerHTML='<div class="empty-state"><p>Koi run nahi mila</p></div>'; return; }
+  c.innerHTML = runs.map(r=>{
+    const st = r.status==='in_progress'?'running': r.status==='queued'?'queued': r.conclusion||'skipped';
+    const isSelected = r.id===selectedRunId;
+    return `<div class="workflow-run-item ${isSelected?'selected':''}" onclick="openRunLogs(${r.id},'${r.display_title||r.name}','${st}')">
+      <div class="status-dot status-${st}"></div>
+      <div class="workflow-info">
+        <div class="workflow-title">${(r.display_title||r.name).substring(0,55)}</div>
+        <div class="workflow-meta">${r.name} • ${r.head_branch} • ${timeAgo(r.created_at)} • #${r.run_number}</div>
+      </div>
+      <span class="status-badge badge-${st}">${st}</span>
+      <a href="${r.html_url}" target="_blank" class="btn-sm" style="font-size:11px;text-decoration:none" onclick="event.stopPropagation()">↗</a>
+    </div>`;
+  }).join('');
+}
+
+// ============ LOG PANEL ============
+async function openRunLogs(runId, title, status) {
+  selectedRunId = runId;
+  // highlight selected
+  document.querySelectorAll('.workflow-run-item').forEach(el=>el.classList.remove('selected'));
+  event.currentTarget.classList.add('selected');
+
+  document.getElementById('log-panel-title').textContent = title;
+  document.getElementById('log-panel-sub').textContent = `Run #${runId} • ${status}`;
+  openLogPanel();
+  switchLogTab('logs', document.querySelector('.log-tab'));
+
+  // Load logs
+  await loadRunLogs(runId, status);
+  // Load artifacts
+  loadRunArtifacts(runId);
+  // Prepare export
+  generateCSV();
+}
+
+async function loadRunLogs(runId, status) {
+  const stream = document.getElementById('log-stream');
+  const liveInd = document.getElementById('live-indicator');
+  stream.innerHTML = '<div class="loading"><div class="spinner"></div><span>Jobs load ho rahi hain...</span></div>';
+
+  // Stop old polling
+  if(logPollInterval){ clearInterval(logPollInterval); logPollInterval=null; }
+
+  const isLive = status==='running' || status==='queued';
+  liveInd.style.display = isLive ? 'flex' : 'none';
+
+  await fetchAndRenderJobs(runId);
+
+  if(isLive) {
+    logPollInterval = setInterval(async()=>{
+      await fetchAndRenderJobs(runId);
+      // Check if still running
+      try{ const run=await ghFetch(`/repos/${currentWorkflowRepo}/actions/runs/${runId}`); if(run.status!=='in_progress'&&run.status!=='queued'){ clearInterval(logPollInterval); logPollInterval=null; liveInd.style.display='none'; showToast('Run complete!','success'); } }catch(e){}
+    }, 5000);
+  }
+}
+
+async function fetchAndRenderJobs(runId) {
+  try {
+    const data = await ghFetch(`/repos/${currentWorkflowRepo}/actions/runs/${runId}/jobs`);
+    const jobs = data.jobs || [];
+    const stream = document.getElementById('log-stream');
+    if(!jobs.length){ stream.innerHTML='<div style="padding:20px;color:var(--muted);font-size:12px">Koi job nahi mili ya logs available nahi hain.</div>'; return; }
+
+    stream.innerHTML = jobs.map((job,ji)=>{
+      const st = job.conclusion||job.status;
+      const stColor = st==='success'?'var(--accent2)':st==='failure'?'var(--danger)':st==='in_progress'?'var(--yellow)':'var(--muted)';
+      const steps = (job.steps||[]).map((step,si)=>{
+        const sSt = step.conclusion||step.status;
+        const sColor = sSt==='success'?'var(--accent2)':sSt==='failure'?'var(--danger)':sSt==='in_progress'?'var(--yellow)':'var(--muted)';
+        const dur = step.completed_at&&step.started_at ? ((new Date(step.completed_at)-new Date(step.started_at))/1000).toFixed(1)+'s' : '...';
+        return `<div class="log-step">
+          <div class="log-step-header" onclick="toggleStep('step-${ji}-${si}')">
+            <span style="color:${sColor};font-size:13px">●</span>
+            <span class="log-step-name">${step.name}</span>
+            <span class="log-step-dur">${dur}</span>
+            <span class="log-step-toggle" id="toggle-${ji}-${si}">▸</span>
+          </div>
+          <div class="log-step-lines" id="step-${ji}-${si}">
+            <div style="padding:8px;color:var(--muted);font-size:11px;font-style:italic">
+              Click to expand • Step ${step.number}: ${sSt}
+              <br><a href="${job.html_url}" target="_blank" style="color:var(--accent)">View full logs on GitHub ↗</a>
+            </div>
+          </div>
+        </div>`;
+      }).join('');
+      return `<div style="margin-bottom:20px">
+        <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px;padding:8px 12px;background:rgba(255,255,255,.03);border-radius:8px;border-left:3px solid ${stColor}">
+          <span style="color:${stColor};font-size:16px">◉</span>
+          <span style="font-family:'Syne',sans-serif;font-weight:700;font-size:13px">${job.name}</span>
+          <span style="margin-left:auto;font-size:11px;color:${stColor}">${st}</span>
+          <a href="${job.html_url}" target="_blank" style="color:var(--accent);font-size:11px;text-decoration:none">Logs ↗</a>
+        </div>
+        ${steps}
+      </div>`;
+    }).join('');
+  } catch(e){
+    document.getElementById('log-stream').innerHTML=`<div style="padding:20px;color:var(--danger);font-size:12px">Error loading jobs: ${e.message}</div>`;
+  }
+}
+
+function toggleStep(id) {
+  const el = document.getElementById(id);
+  const parts = id.split('-');
+  const tog = document.getElementById(`toggle-${parts[1]}-${parts[2]}`);
+  const expanded = el.classList.toggle('expanded');
+  tog.textContent = expanded ? '▾' : '▸';
+}
+
+async function loadRunArtifacts(runId) {
+  const c = document.getElementById('artifacts-container');
+  c.innerHTML = '<div class="loading"><div class="spinner"></div><span>Artifacts load ho rahe hain...</span></div>';
+  try {
+    const data = await ghFetch(`/repos/${currentWorkflowRepo}/actions/runs/${runId}/artifacts`);
+    const arts = data.artifacts || [];
+    if(!arts.length){ c.innerHTML='<div class="empty-state"><p>Koi artifact nahi mila</p></div>'; return; }
+    c.innerHTML = arts.map(a=>`
+      <div class="artifact-item">
+        <div class="artifact-icon">
+          <svg viewBox="0 0 16 16" fill="currentColor" style="color:var(--accent)"><path d="M4 3a2 2 0 012-2h4.586A2 2 0 0112 1.586L13.414 3A2 2 0 0114 4.414V12a2 2 0 01-2 2H4a2 2 0 01-2-2V3zm2-.5a.5.5 0 00-.5.5V12a.5.5 0 00.5.5h8a.5.5 0 00.5-.5V4.414a.5.5 0 00-.146-.354L13.44 2.646A.5.5 0 0013.086 2.5H10v2.75a.75.75 0 01-.75.75h-2.5A.75.75 0 016 5.25V2.5H6z"/></svg>
+        </div>
+        <div class="artifact-info">
+          <div class="artifact-name">${a.name}</div>
+          <div class="artifact-meta">${formatBytes(a.size_in_bytes)} • Expires: ${a.expires_at?new Date(a.expires_at).toLocaleDateString():'N/A'} • ID: ${a.id}</div>
+        </div>
+        <a href="${a.archive_download_url}" class="btn-sm btn-accent" style="text-decoration:none;font-size:11px" onclick="downloadArtifact(event,'${a.archive_download_url}','${a.name}')">⬇ Download</a>
+      </div>`).join('');
+  } catch(e){ c.innerHTML=`<div class="empty-state"><p>Error: ${e.message}</p></div>`; }
+}
+
+async function downloadArtifact(e,url,name){
+  e.preventDefault();
+  showToast(`${name} download shuru...`,'info');
+  try {
+    const res = await fetch(url, { headers:{'Authorization':`token ${TOKEN}`} });
+    const blob = await res.blob();
+    const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=name+'.zip'; a.click();
+  } catch(err){ showToast('Download error: '+err.message,'error'); }
+}
+
+// ============ LOG PANEL CONTROLS ============
+function openLogPanel() {
+  document.getElementById('log-panel').classList.add('open');
+  document.getElementById('main-content').classList.add('log-open');
+}
+function closeLogPanel() {
+  document.getElementById('log-panel').classList.remove('open');
+  document.getElementById('main-content').classList.remove('log-open');
+  selectedRunId = null;
+  if(logPollInterval){ clearInterval(logPollInterval); logPollInterval=null; }
+  document.getElementById('live-indicator').style.display='none';
+  document.querySelectorAll('.workflow-run-item').forEach(el=>el.classList.remove('selected'));
+}
+function switchLogTab(tab, el) {
+  currentLogTab = tab;
+  document.querySelectorAll('.log-tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.log-tab-content').forEach(t=>t.classList.remove('active'));
+  document.getElementById('log-tab-'+tab).classList.add('active');
+  // find tab button
+  const tabs = document.querySelectorAll('.log-tab');
+  const tabMap = {'logs':0,'artifacts':1,'export':2};
+  tabs[tabMap[tab]]?.classList.add('active');
+  if(tab==='export') generateCSV();
+}
+
+// ============ SHEETS EXPORT ============
+function openExportPanel() {
+  if(!currentWorkflowRepo){ showToast('Pehle repo select karein','error'); return; }
+  openLogPanel();
+  switchLogTab('export', null);
+}
+
+function generateCSV() {
+  const includeRuns = document.getElementById('exp-runs')?.checked;
+  const includeArtifacts = document.getElementById('exp-artifacts')?.checked;
+  if(!allRunsData.length){ document.getElementById('csv-output').value='Pehle koi workflow repo select karein.'; return; }
+  let csv = '';
+  if(includeRuns) {
+    csv += 'Run ID\tWorkflow\tBranch\tStatus\tConclusion\tTriggered By\tCreated At\tUpdated At\tURL\n';
+    csv += allRunsData.map(r=>`${r.id}\t${r.name}\t${r.head_branch}\t${r.status}\t${r.conclusion||'N/A'}\t${r.triggering_actor?.login||r.event}\t${new Date(r.created_at).toLocaleString()}\t${new Date(r.updated_at).toLocaleString()}\t${r.html_url}`).join('\n');
+    csv += '\n\n';
+  }
+  document.getElementById('csv-output').value = csv;
+  renderSheetsPreview(allRunsData.slice(0,5));
+}
+
+function renderSheetsPreview(runs) {
+  const headers = ['Run ID','Workflow','Branch','Status','Conclusion','Created At'];
+  const table = `<div style="overflow-x:auto"><table class="sheets-table-preview">
+    <tr>${headers.map(h=>`<th>${h}</th>`).join('')}</tr>
+    ${runs.map(r=>`<tr><td>${r.id}</td><td>${r.name}</td><td>${r.head_branch}</td><td>${r.status}</td><td>${r.conclusion||'N/A'}</td><td>${new Date(r.created_at).toLocaleDateString()}</td></tr>`).join('')}
+  </table></div><p style="font-size:11px;color:var(--muted);margin-top:6px">(Showing first ${runs.length} rows)</p>`;
+  document.getElementById('sheets-preview').innerHTML = table;
+}
+
+function copyCSV() {
+  const v = document.getElementById('csv-output').value;
+  if(!v){ showToast('Pehle Generate CSV karein','error'); return; }
+  navigator.clipboard.writeText(v).then(()=>showToast('CSV copied! Google Sheets mein paste karein.','success'));
+}
+
+function downloadCSV() {
+  const v = document.getElementById('csv-output').value;
+  if(!v){ showToast('Pehle Generate CSV karein','error'); return; }
+  const csv = v.replace(/\t/g,',');
+  const blob = new Blob([csv],{type:'text/csv'});
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `${currentWorkflowRepo.replace('/','_')}_workflows.csv`;
+  a.click();
+  showToast('CSV download shuru ho gaya!','success');
+}
+
+// ============ UTILS ============
+function setLoading(id,msg){ document.getElementById(id).innerHTML=`<div class="loading"><div class="spinner"></div><span>${msg}</span></div>`; }
+function closeModal(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.modal-overlay').forEach(m=>{ m.addEventListener('click',e=>{ if(e.target===m) m.classList.remove('open'); }); });
+function showToast(msg,type='success'){ const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`; setTimeout(()=>{ t.className='toast'; },3500); }
+function timeAgo(d){ const diff=(Date.now()-new Date(d))/1000; if(diff<60)return 'just now'; if(diff<3600)return Math.floor(diff/60)+'m ago'; if(diff<86400)return Math.floor(diff/3600)+'h ago'; if(diff<2592000)return Math.floor(diff/86400)+'d ago'; if(diff<31536000)return Math.floor(diff/2592000)+'mo ago'; return Math.floor(diff/31536000)+'y ago'; }
+function formatBytes(b){ if(!b)return '0 B'; if(b<1024)return b+' B'; if(b<1048576)return (b/1024).toFixed(1)+' KB'; return (b/1048576).toFixed(1)+' MB'; }
+document.addEventListener('keydown',e=>{ if(e.key==='Escape'){ document.querySelectorAll('.modal-overlay.open').forEach(m=>m.classList.remove('open')); closeLogPanel(); } });
+</script>
+</body>
+</html>
