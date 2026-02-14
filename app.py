@@ -720,6 +720,37 @@ def api_drive_upload():
 
     return jsonify({"ok": True, "results": out})
 
+
+@app.route("/api/drive/status")
+def api_drive_status():
+    if not DRIVE_OK:
+        return jsonify({"ok": False, "available": False, "error": "Drive uploader not available"})
+    if not (BASE_DIR / "credentials.json").exists():
+        return jsonify({"ok": False, "available": True, "connected": False, "error": "credentials.json not found"})
+
+    du = get_drive()
+    if not du:
+        return jsonify({"ok": False, "available": True, "connected": False, "error": "Drive uploader init failed"})
+
+    try:
+        ok = bool(du.connect())
+        return jsonify({"ok": True, "available": True, "connected": ok})
+    except Exception as e:
+        return jsonify({"ok": False, "available": True, "connected": False, "error": str(e)})
+
+
+@app.route("/api/translate/status")
+def api_translate_status():
+    if not _TRANSLATE_OK:
+        return jsonify({"ok": False, "available": False, "error": "googletrans not installed"})
+    try:
+        t = Translator()
+        res = t.translate("Hello", src="en", dest="ur")
+        txt = str(getattr(res, 'text', '') or '')
+        return jsonify({"ok": True, "available": True, "working": bool(txt), "sample": txt})
+    except Exception as e:
+        return jsonify({"ok": False, "available": True, "working": False, "error": str(e)})
+
 # ══════════════════════════════════════════════════════════════════════════════
 #  STAGE 4 — POST  (placeholder)
 # ══════════════════════════════════════════════════════════════════════════════

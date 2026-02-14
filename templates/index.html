@@ -562,8 +562,23 @@ async function refreshConnectStatus(){
     const d=await fetch('/api/stats').then(r=>r.json());
     pill('pill-sheets', !!d.sheets_ok, 'Sheets: '+(d.sheets_ok?'Connected':'Not Connected'), !d.sheets_ok);
     pill('pill-img', !!d.imggen_ok, 'ImageGen: '+(d.imggen_ok?'Ready':'Missing'), !d.imggen_ok);
-    pill('pill-drive', true, 'Drive: Available (service account)', false);
-    pill('pill-translate', true, 'Translate: googletrans', false);
+    const dr=await fetch('/api/drive/status').then(r=>r.json());
+    if(dr.ok && dr.connected){
+      pill('pill-drive', true, 'Drive: Connected', false);
+    } else if(dr.available){
+      pill('pill-drive', false, 'Drive: Not Connected', true);
+    } else {
+      pill('pill-drive', false, 'Drive: Unavailable', false);
+    }
+
+    const tr=await fetch('/api/translate/status').then(r=>r.json());
+    if(tr.ok && (tr.working ?? true)){
+      pill('pill-translate', true, 'Translate: Working', false);
+    } else if(tr.available){
+      pill('pill-translate', false, 'Translate: Error', true);
+    } else {
+      pill('pill-translate', false, 'Translate: Unavailable', false);
+    }
   }catch(e){
     msg.textContent='Failed to load status';
   }
