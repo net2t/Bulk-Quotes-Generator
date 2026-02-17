@@ -103,9 +103,8 @@ def test_files():
     files = [
         ('scripts/ai_prompt_generator.py', 'AI Prompt Generator'),
         ('scripts/ai_image_generator.py', 'AI Image Generator'),
-        ('scripts/dashboard.py', 'Dashboard'),
-        ('docs/QUICK_REFERENCE.md', 'Quick Reference'),
-        ('docs/ENHANCED_SETUP_GUIDE.md', 'Setup Guide'),
+        ('app.py', 'Web Dashboard (app.py)'),
+        ('templates/index.html', 'Dashboard UI Template'),
     ]
     
     all_good = True
@@ -177,7 +176,7 @@ def run_all_tests():
     
     if passed >= total - 1:
         print("\n🚀 Next Steps:")
-        print("   1. Run: python scripts/dashboard.py")
+        print("   1. Run: python app.py")
         print("   2. Open: http://localhost:8000")
         print("   3. Start creating!")
         

@@ -122,7 +122,7 @@ def test_setup():
     
     print("\n🎉 Setup test completed!")
     print("📋 If all tests pass, your Bulk Quotes Image Generator is ready to use!")
-    print("🚀 Run 'python scripts/dashboard.py' to start the web dashboard")
+    print("🚀 Run 'python app.py' to start the web dashboard")
 
 if __name__ == "__main__":
     test_setup()
