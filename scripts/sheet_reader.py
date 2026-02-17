@@ -20,19 +20,15 @@ class SheetReader:
         self.client = None
         self.spreadsheet = None
         self.cache = {}
-        self.config = self._load_config()
-        
-        # Use the correct sheet URL
-        self.sheet_url = "https://docs.google.com/spreadsheets/d/1jn1DroWU8GB5Sc1rQ7wT-WusXK9v4V05ISYHgUEjYZc/edit"
+        self.config = {}
 
-    def _load_config(self) -> dict:
-        try:
-            config_path = Path("references") / "config.json"
-            if config_path.exists():
-                return json.loads(config_path.read_text(encoding="utf-8"))
-        except Exception:
-            pass
-        return {}
+        # Sheet URL priority:
+        # 1) env GOOGLE_SHEET_URL
+        # 2) fallback hardcoded default (keeps app runnable without extra files)
+        self.sheet_url = os.environ.get(
+            "GOOGLE_SHEET_URL",
+            "https://docs.google.com/spreadsheets/d/1jn1DroWU8GB5Sc1rQ7wT-WusXK9v4V05ISYHgUEjYZc/edit",
+        )
 
     def _get_database_worksheet_name(self) -> str:
         return "Database"  # Fixed to use the correct worksheet name

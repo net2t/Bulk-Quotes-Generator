@@ -38,8 +38,7 @@ def test_setup():
         root_dir / 'assets' / 'ai_backgrounds',
         root_dir / 'assets' / 'custom_backgrounds',
         root_dir / 'Watermarks',
-        root_dir / 'Generated_Images',
-        root_dir / 'references'
+        root_dir / 'Generated_Images'
     ]
     
     for dir_path in required_dirs:
@@ -57,7 +56,6 @@ def test_setup():
     # Test files
     required_files = [
         root_dir / 'credentials.json',
-        root_dir / 'references' / 'config.json',
         root_dir / 'requirements.txt',
         root_dir / 'README.md'
     ]
