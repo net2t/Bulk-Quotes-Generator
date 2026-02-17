@@ -1,807 +1,945 @@
 #!/usr/bin/env python3
 """
-QuoteMaster v2.0 — Unified Dashboard
-Scrape → Review → Generate → Post
-
-Drop this file into your Bulk-Quotes-Image-Generator root folder.
-Then run:  python app.py
-Open:      http://localhost:8000
-
-What changed from old dashboard.py:
-  • 4-stage pipeline  (Collect / Review / Generate / Post-placeholder)
-  • Scraper built-in  (no more separate terminal)
-  • Review stage      (approve/reject CSV quotes before pushing to Sheet)
-  • Same scripts/     folder — nothing inside it was changed
+AI Quote Generator Pro - Backend
+Bulk Social Media Content Generator with AI
+Features:
+- Hugging Face AI integration (text-to-prompt + image generation)
+- Multiple storage providers (ImgBB, Cloudinary, Google Drive)
+- 6 modern design styles
+- Bulk processing with Google Sheets
+- Custom logo/watermark support
 """
 
-import os, sys, json, uuid, time, threading, csv, re
+import os
+import sys
+import json
+import uuid
+import time
+import base64
+import zipfile
+import requests
+import threading
 from pathlib import Path
 from datetime import datetime
-from flask import Flask, render_template, request, jsonify, send_from_directory
+from io import BytesIO
+from typing import Dict, List, Optional, Tuple
 
+from flask import Flask, render_template, request, jsonify, send_file, send_from_directory
+from flask_cors import CORS
+
+# Image processing
 try:
-    from googletrans import Translator
-    _TRANSLATE_OK = True
-except Exception:
-    Translator = None
-    _TRANSLATE_OK = False
+    from PIL import Image, ImageDraw, ImageFont, ImageFilter, ImageEnhance
+    PIL_OK = True
+except ImportError:
+    PIL_OK = False
+    print("[ERROR] PIL not installed. Run: pip install pillow")
 
-# ── Paths ─────────────────────────────────────────────────────────────────────
-BASE_DIR    = Path(__file__).parent.resolve()
-SCRIPTS_DIR = BASE_DIR / "scripts"
-sys.path.insert(0, str(SCRIPTS_DIR))
-
-# ── Lazy-import existing scripts (graceful if creds missing) ──────────────────
+# Google Sheets
 try:
-    from sheet_reader import SheetReader
+    import gspread
+    from oauth2client.service_account import ServiceAccountCredentials
     SHEETS_OK = True
-except Exception as e:
-    print(f"[WARN] sheet_reader: {e}")
+except ImportError:
     SHEETS_OK = False
-    SheetReader = None
+    print("[WARN] Google Sheets support not available. Install: pip install gspread oauth2client")
 
-try:
-    from image_generator import QuoteImageGenerator
-    IMAGE_GEN_OK = True
-except Exception as e:
-    print(f"[WARN] image_generator: {e}")
-    IMAGE_GEN_OK = False
-    QuoteImageGenerator = None
+# Initialize Flask
+app = Flask(__name__)
+CORS(app)
 
-try:
-    from google_drive_uploader import DriveUploader
-    DRIVE_OK = True
-except Exception:
-    DRIVE_OK = False
-    DriveUploader = None
+# Directories
+BASE_DIR = Path(__file__).parent
+OUTPUT_DIR = BASE_DIR / "Generated_Images"
+TEMP_DIR = BASE_DIR / "temp"
+LOGOS_DIR = BASE_DIR / "Watermarks"
 
-try:
-    from app_version import APP_VERSION
-except Exception:
-    APP_VERSION = "1.100.1.1"
+OUTPUT_DIR.mkdir(exist_ok=True)
+TEMP_DIR.mkdir(exist_ok=True)
+LOGOS_DIR.mkdir(exist_ok=True)
 
-APP_VERSION_UNIFIED = "2.0.0"
-
-# ── Flask app ─────────────────────────────────────────────────────────────────
-app = Flask(__name__, template_folder="templates")
-app.config["JSON_SORT_KEYS"] = False
-
-# ── Singleton components ──────────────────────────────────────────────────────
-_sheet = None
-_gen   = None
-_drive = None
-
-def get_sheet() -> "SheetReader | None":
-    global _sheet
-    if _sheet is None and SHEETS_OK:
-        try:
-            _sheet = SheetReader()
-            _sheet.connect()
-        except Exception as e:
-            print(f"[WARN] Sheet connect: {e}")
-    return _sheet
-
-def get_gen() -> "QuoteImageGenerator | None":
-    global _gen
-    if _gen is None and IMAGE_GEN_OK:
-        try:
-            _gen = QuoteImageGenerator(
-                output_dir=str(BASE_DIR / "Generated_Images"),
-                watermark_dir=str(BASE_DIR / "Watermarks"),
-            )
-        except Exception as e:
-            print(f"[WARN] ImageGen init: {e}")
-    return _gen
-
-def get_drive() -> "DriveUploader | None":
-    global _drive
-    if _drive is None and DRIVE_OK:
-        try:
-            _drive = DriveUploader()
-        except Exception:
-            pass
-    return _drive
-
-
-def _sanitize_quote_author(quote: str, author: str) -> str:
-    q = str(quote or '').strip()
-    a = str(author or '').strip()
-    if not q or not a:
-        return q
-    q_cmp = re.sub(r"\s+", " ", q).strip().lower()
-    a_cmp = re.sub(r"\s+", " ", a).strip().lower()
-
-    # Common patterns where author is appended at end of quote text
-    patterns = [
-        rf"{re.escape(a_cmp)}$",
-        rf"[-—–]\s*{re.escape(a_cmp)}$",
-        rf"\"\s*{re.escape(a_cmp)}$",
-        rf"\"\s*[-—–]\s*{re.escape(a_cmp)}$",
-    ]
-    for p in patterns:
-        if re.search(p, q_cmp, flags=re.IGNORECASE):
-            q = re.sub(p, "", q, flags=re.IGNORECASE).rstrip(" \t\r\n\"-—–")
-            break
-    return q.strip()
-
-# ── Job tracker ───────────────────────────────────────────────────────────────
-JOBS: dict[str, dict] = {}
-
-# ── Scrape state ──────────────────────────────────────────────────────────────
-SCRAPE_LOG    = []
-SCRAPE_ACTIVE = threading.Event()
-EXPORT_DIR    = BASE_DIR / "Export"
-EXPORT_DIR.mkdir(exist_ok=True)
-
-# ── Goodreads categories ──────────────────────────────────────────────────────
-CATEGORIES = [
-    (1,  "Love",          "https://www.goodreads.com/quotes/tag/love"),
-    (2,  "Life",          "https://www.goodreads.com/quotes/tag/life"),
-    (3,  "Inspirational", "https://www.goodreads.com/quotes/tag/inspirational"),
-    (4,  "Humor",         "https://www.goodreads.com/quotes/tag/humor"),
-    (5,  "Philosophy",    "https://www.goodreads.com/quotes/tag/philosophy"),
-    (6,  "God",           "https://www.goodreads.com/quotes/tag/god"),
-    (7,  "Truth",         "https://www.goodreads.com/quotes/tag/truth"),
-    (8,  "Wisdom",        "https://www.goodreads.com/quotes/tag/wisdom"),
-    (9,  "Romance",       "https://www.goodreads.com/quotes/tag/romance"),
-    (10, "Poetry",        "https://www.goodreads.com/quotes/tag/poetry"),
-    (11, "Life Lessons",  "https://www.goodreads.com/quotes/tag/life-lessons"),
-    (12, "Death",         "https://www.goodreads.com/quotes/tag/death"),
-    (13, "Happiness",     "https://www.goodreads.com/quotes/tag/happiness"),
-    (14, "Hope",          "https://www.goodreads.com/quotes/tag/hope"),
-    (15, "Faith",         "https://www.goodreads.com/quotes/tag/faith"),
-    (16, "Inspiration",   "https://www.goodreads.com/quotes/tag/inspiration"),
-    (17, "Spirituality",  "https://www.goodreads.com/quotes/tag/spirituality"),
-    (18, "Relationships", "https://www.goodreads.com/quotes/tag/relationships"),
-    (19, "Motivational",  "https://www.goodreads.com/quotes/tag/motivational"),
-    (20, "Religion",      "https://www.goodreads.com/quotes/tag/religion"),
-    (21, "Writing",       "https://www.goodreads.com/quotes/tag/writing"),
-    (22, "Success",       "https://www.goodreads.com/quotes/tag/success"),
-    (23, "Travel",        "https://www.goodreads.com/quotes/tag/travel"),
-    (24, "Motivation",    "https://www.goodreads.com/quotes/tag/motivation"),
-    (25, "Time",          "https://www.goodreads.com/quotes/tag/time"),
-]
-
-CSV_HEADER = ["SNO","THUMB","CATEGORY","AUTHOR","QUOTE","TRANSLATE","TAGS","LIKES","IMAGE","TOTAL"]
+# Job tracking
+JOBS: Dict[str, dict] = {}
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  MAIN PAGE
+#  SETTINGS / DEFAULTS
 # ══════════════════════════════════════════════════════════════════════════════
 
-@app.route("/")
-def index():
-    styles = [
-        {"id":"elegant",          "label":"Elegant",       "icon":"✨"},
-        {"id":"modern",           "label":"Modern",        "icon":"🔷"},
-        {"id":"neon",             "label":"Neon",          "icon":"🧿"},
-        {"id":"vintage",          "label":"Vintage",       "icon":"📜"},
-        {"id":"minimalist_dark",  "label":"Dark Minimal",  "icon":"🌑"},
-        {"id":"creative_split",   "label":"Split",         "icon":"🎭"},
-        {"id":"geometric",        "label":"Geometric",     "icon":"🔺"},
-        {"id":"artistic",         "label":"Artistic",      "icon":"🎨"},
-        {"id":"gradient_sunset",  "label":"Sunset",        "icon":"🌅"},
-        {"id":"nature",           "label":"Nature",        "icon":"🌿"},
-        {"id":"ocean",            "label":"Ocean",         "icon":"🌊"},
-        {"id":"cosmic",           "label":"Cosmic",        "icon":"🌌"},
-    ]
-    return render_template("index.html",
-        app_version = APP_VERSION_UNIFIED,
-        categories  = CATEGORIES,
-        styles      = styles,
-    )
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  STATS
-# ══════════════════════════════════════════════════════════════════════════════
-
-@app.route("/api/stats")
-def api_stats():
-    gen_dir = BASE_DIR / "Generated_Images"
-    imgs = len(list(gen_dir.glob("*.png"))) + len(list(gen_dir.glob("*.jpg"))) \
-           if gen_dir.exists() else 0
-    csv_count = len(list(EXPORT_DIR.glob("*.csv"))) if EXPORT_DIR.exists() else 0
-
-    topics = []
-    sr = get_sheet()
-    if sr:
-        try: topics = sr.get_all_topics()
-        except Exception: pass
-
-    return jsonify({
-        "topics":    len(topics),
-        "images":    imgs,
-        "csvs":      csv_count,
-        "sheets_ok": SHEETS_OK and bool(sr and sr.spreadsheet),
-        "imggen_ok": IMAGE_GEN_OK,
-        "version":   APP_VERSION_UNIFIED,
-    })
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  STAGE 1 — SCRAPER
-# ══════════════════════════════════════════════════════════════════════════════
-
-@app.route("/api/scrape/start", methods=["POST"])
-def api_scrape_start():
-    if SCRAPE_ACTIVE.is_set():
-        return jsonify({"ok": False, "error": "Scrape already running"}), 409
-
-    data       = request.get_json() or {}
-    cat_ids    = [int(x) for x in (data.get("categories") or [])]
-    page_limit = int(data.get("page_limit") or 1)
-    selected   = [c for c in CATEGORIES if c[0] in cat_ids] if cat_ids else CATEGORIES
-
-    job_id = uuid.uuid4().hex
-    JOBS[job_id] = {"status":"running","progress":0.0,"message":"Starting…","result":None}
-
-    def _run():
-        SCRAPE_ACTIVE.set()
-        SCRAPE_LOG.clear()
-        grand_total = 0
-        total = len(selected)
-
-        try:
-            import requests as req_lib, random as rlib, time as tlib
-            from bs4 import BeautifulSoup
-
-            UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) Chrome/120.0"
-            seen: set[str] = set()
-            session = req_lib.Session()
-
-            def _clean(t):
-                if not t: return ""
-                t = re.split(r'\s*[-—]+\s*', t, 1)[0]
-                for a, b in [
-                    ("\u201c", '"'),
-                    ("\u201d", '"'),
-                    ("\u2018", "'"),
-                    ("\u2019", "'"),
-                ]:
-                    t = t.replace(a, b)
-                t = t.encode('ascii','ignore').decode().strip().strip('"\'')
-                return ' '.join(t.split())
-
-            def _auth(t):
-                if not t: return "Unknown"
-                t = re.sub(r'[=,\.\-]+',' ', t.strip())
-                return ' '.join(t.split()) or "Unknown"
-
-            for i, (num, name, url) in enumerate(selected):
-                JOBS[job_id]["message"]  = f"Scraping: {name} ({i+1}/{total})"
-                JOBS[job_id]["progress"] = i / total
-                cat_added = 0
-                csv_path  = EXPORT_DIR / f"{name}.csv"
-
-                existing: set[str] = set()
-                last_sno = 0
-                if csv_path.exists():
-                    with open(csv_path, newline='', encoding='utf-8') as f:
-                        for row in csv.DictReader(f):
-                            q = (row.get("QUOTE") or "").strip().lower()
-                            if q: existing.add(q)
-                            try: last_sno = max(last_sno, int(row.get("SNO") or 0))
-                            except Exception: pass
-
-                with open(csv_path, 'a', newline='', encoding='utf-8') as f:
-                    writer = csv.writer(f)
-                    if f.tell() == 0:
-                        writer.writerow(CSV_HEADER)
-
-                    cur, pages = url, 0
-                    while cur and (page_limit == 0 or pages < page_limit):
-                        tlib.sleep(rlib.uniform(1.2, 2.6))
-                        try:
-                            r = session.get(cur, headers={"User-Agent": UA}, timeout=30)
-                            r.raise_for_status()
-                        except Exception as e:
-                            SCRAPE_LOG.append({"type":"warn","msg":f"{name} pg{pages+1}: {e}"})
-                            break
-
-                        soup = BeautifulSoup(r.text, "lxml")
-                        for div in soup.find_all("div", class_="quote"):
-                            try:
-                                qt = div.find("div", class_="quoteText")
-                                if not qt: continue
-                                q = _clean(qt.get_text(strip=True))
-                                if not q or len(q) < 50: continue
-                                key = q.lower()
-                                if key in existing or key in seen: continue
-                                a_sp  = div.find("span", class_="authorOrTitle")
-                                auth  = _auth(a_sp.get_text(strip=True) if a_sp else "")
-                                td    = div.find("div", class_="greyText")
-                                tags  = (td.get_text(strip=True) if td else "").replace("tags:","").strip()
-                                ii    = div.find("img")
-                                img   = ii.get("src","") if ii else ""
-                                ld    = div.find("div", class_="right")
-                                likes = 0
-                                if ld:
-                                    lt = ld.get_text(strip=True)
-                                    if "likes" in lt:
-                                        ln = lt.split("likes")[0].strip().replace(",","")
-                                        likes = int(ln) if ln.isdigit() else 0
-                                existing.add(key); seen.add(key)
-                                last_sno += 1; cat_added += 1; grand_total += 1
-                                writer.writerow([last_sno,"",name,auth,q,"",tags,likes,img,len(q)])
-                            except Exception: continue
-
-                        pages += 1
-                        nxt = soup.find("a", class_="next_page")
-                        cur = f"https://www.goodreads.com{nxt['href']}" if nxt else None
-
-                SCRAPE_LOG.append({"type":"ok","msg":f"✅ {name}: {cat_added} new quotes"})
-
-            JOBS[job_id].update({"status":"done","progress":1.0,
-                "message":f"Done — {grand_total} quotes saved",
-                "result":{"total": grand_total}})
-        except Exception as e:
-            JOBS[job_id].update({"status":"error","message":str(e),"result":None})
-        finally:
-            SCRAPE_ACTIVE.clear()
-
-    threading.Thread(target=_run, daemon=True).start()
-    return jsonify({"ok": True, "job_id": job_id})
-
-
-@app.route("/api/scrape/log")
-def api_scrape_log():
-    return jsonify({"log": list(SCRAPE_LOG), "running": SCRAPE_ACTIVE.is_set()})
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  STAGE 2 — REVIEW  (local CSV files)
-# ══════════════════════════════════════════════════════════════════════════════
-
-@app.route("/api/review/categories")
-def api_review_cats():
-    cats = []
-    if EXPORT_DIR.exists():
-        for f in sorted(EXPORT_DIR.glob("*.csv")):
-            count = 0
-            try:
-                with open(f, newline='', encoding='utf-8') as fh:
-                    count = max(0, sum(1 for _ in fh) - 1)
-            except Exception:
-                pass
-            cats.append({"name": f.stem, "count": count})
-    return jsonify({"categories": cats})
-
-
-@app.route("/api/review/quotes")
-def api_review_quotes():
-    cat    = request.args.get("cat","")
-    offset = int(request.args.get("offset", 0))
-    limit  = int(request.args.get("limit",  40))
-
-    f = EXPORT_DIR / f"{cat}.csv"
-    if not f.exists():
-        return jsonify({"quotes":[], "total":0})
-
-    rows = []
+def _load_json_settings() -> dict:
     try:
-        with open(f, newline='', encoding='utf-8') as fh:
-            rows = list(csv.DictReader(fh))
+        cfg_path = BASE_DIR / "references" / "config.json"
+        if cfg_path.exists():
+            return json.loads(cfg_path.read_text(encoding="utf-8"))
     except Exception:
         pass
-
-    page   = rows[offset: offset + limit]
-    quotes = [{"quote":r.get("QUOTE",""), "translate":r.get("TRANSLATE",""), "author":r.get("AUTHOR",""),
-               "category":r.get("CATEGORY",""), "tags":r.get("TAGS",""),
-               "image":r.get("IMAGE",""), "length":r.get("TOTAL",""),
-               "likes":r.get("LIKES","")} for r in page]
-    return jsonify({"quotes": quotes, "total": len(rows)})
+    return {}
 
 
-@app.route("/api/review/push", methods=["POST"])
-def api_review_push():
-    """Push approved quotes into Google Sheets Database tab."""
-    data   = request.get_json() or {}
-    quotes = data.get("quotes", [])
-    if not quotes:
-        return jsonify({"ok": False, "error": "No quotes provided"})
+SETTINGS = _load_json_settings()
 
-    sr = get_sheet()
-    if not sr or not sr.spreadsheet:
-        return jsonify({"ok": False, "error": "Not connected to Google Sheets. Check credentials.json"})
 
-    try:
-        ws = sr.spreadsheet.worksheet("Database")
-        existing_keys = set(
-            str(r.get("QUOTE","")).strip().lower()
-            for r in ws.get_all_records()
-        )
+def _get_setting(path: str, default=None):
+    cur = SETTINGS
+    for part in str(path or "").split("."):
+        if not isinstance(cur, dict) or part not in cur:
+            return default
+        cur = cur.get(part)
+    return cur if cur is not None else default
 
-        to_add, skipped = [], 0
-        for q in quotes:
-            key = str(q.get("quote","")).strip().lower()
-            if not key or key in existing_keys:
-                skipped += 1
-                continue
-            existing_keys.add(key)
-            to_add.append([
-                "", len(q.get("quote","")),
-                q.get("category",""), q.get("author",""),
-                q.get("quote",""),    q.get("translate",""),
-                q.get("tags",""),     q.get("image",""),
-                "", "", "", "", "Pending", "", ""
-            ])
 
-        if to_add:
-            ws.append_rows(to_add, value_input_option="USER_ENTERED")
+def _env(name: str, default=None):
+    v = os.environ.get(name)
+    if v is None or str(v).strip() == "":
+        return default
+    return v
 
-        return jsonify({"ok": True, "pushed": len(to_add), "skipped": skipped})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)})
+
+def _get_sheet_url() -> Optional[str]:
+    return _env("GOOGLE_SHEET_URL", _get_setting("google_sheets.sheet_url"))
+
+
+def _get_hf_token() -> Optional[str]:
+    return _env("HUGGINGFACE_API_TOKEN", _env("HF_API_TOKEN"))
+
+
+def _get_storage_secret(provider: str) -> Optional[str]:
+    p = str(provider or "").strip().lower()
+    if p == "imgbb":
+        return _env("IMGBB_API_KEY")
+    if p == "cloudinary":
+        return _env("CLOUDINARY_CREDENTIALS")
+    if p == "gdrive":
+        return _env("GOOGLE_DRIVE_CREDENTIALS_PATH", str(BASE_DIR / "credentials.json"))
+    if p == "local":
+        return ""
+    return None
+
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  STAGE 3 — GENERATE  (uses existing scripts unchanged)
+#  HUGGING FACE AI MODELS
 # ══════════════════════════════════════════════════════════════════════════════
 
-@app.route("/api/topics")
-def api_topics():
-    sr, topics = get_sheet(), []
-    if sr:
-        try: topics = sr.get_all_topics()
-        except Exception: pass
-    return jsonify({"topics": topics})
+class HuggingFaceAPI:
+    """Hugging Face API client for AI models"""
+    
+    def __init__(self, api_token: str):
+        self.api_token = api_token
+        self.headers = {"Authorization": f"Bearer {api_token}"}
+    
+    def generate_image_prompt(self, quote: str, author: str, style: str, model: str) -> str:
+        """Generate creative image prompt from quote using LLM"""
+        
+        prompt = f"""Based on this quote: "{quote}" by {author}
+Design Style: {style}
 
+Create a detailed image generation prompt that captures the essence and mood of this quote.
+The prompt should describe visual elements, colors, atmosphere, and artistic style.
+Keep it under 100 words, focus on visual descriptions only.
 
-@app.route("/api/quotes/<topic>")
-def api_quotes(topic):
-    sr, quotes = get_sheet(), []
-    if sr:
-        try: quotes = sr.get_quotes_by_topic(topic)
-        except Exception: pass
-    return jsonify({"quotes": quotes})
-
-
-@app.route("/api/translate", methods=["POST"])
-def api_translate():
-    data = request.get_json() or {}
-    text = str(data.get("text") or "")
-    src = str(data.get("src") or "en")
-    dest = str(data.get("dest") or "ur")
-    row = data.get("row")
-
-    if not text.strip():
-        return jsonify({"ok": False, "error": "Empty text"}), 400
-    if not _TRANSLATE_OK:
-        return jsonify({"ok": False, "error": "Translation not available. Install requirements."}), 503
-
-    try:
-        t = Translator()
-        res = t.translate(text, src=src, dest=dest)
-        translated = str(getattr(res, 'text', '') or '')
-
-        saved = False
-        save_error = None
-        if row not in (None, ""):
-            sr = get_sheet()
-            if not sr or not sr.spreadsheet:
-                save_error = "Not connected to Google Sheets"
-            else:
-                try:
-                    saved = bool(sr.write_translation(int(row), translated))
-                    if not saved:
-                        save_error = "Sheet write failed"
-                except Exception as e:
-                    saved = False
-                    save_error = str(e)
-
-        return jsonify({"ok": True, "translated": translated, "saved": saved, "save_error": save_error})
-    except Exception as e:
-        return jsonify({"ok": False, "error": str(e)}), 500
-
-
-@app.route("/api/remaining/<topic>")
-def api_remaining(topic):
-    sr = get_sheet()
-    if sr:
-        try: return jsonify(sr.get_remaining_counts(topic))
-        except Exception: pass
-    return jsonify({"topic_total": 0, "authors": {}})
-
-
-@app.route("/api/fonts")
-def api_fonts():
-    g = get_gen()
-    fonts = []
-    if g:
-        try: fonts = g.get_available_fonts()
-        except Exception: pass
-    return jsonify({"fonts": fonts})
-
-
-@app.route("/api/job/start", methods=["POST"])
-def api_job_start():
-    data    = request.get_json() or {}
-    kind    = str(data.get("kind","")).strip().lower()
-    payload = data.get("payload") or {}
-    job_id  = uuid.uuid4().hex
-    JOBS[job_id] = {"status":"running","progress":0.0,"message":"Queued","result":None}
-
-    try:
-        if kind == "single":
-            JOBS[job_id]["message"]  = "Rendering image…"
-            JOBS[job_id]["progress"] = 0.10
-            result = _single(payload, job_id)
-        elif kind == "bulk":
-            JOBS[job_id]["message"]  = "Preparing bulk…"
-            JOBS[job_id]["progress"] = 0.05
-            result = _bulk(payload, job_id)
-        else:
-            raise ValueError(f"Unknown job kind: {kind}")
-        JOBS[job_id].update({"status":"done","progress":1.0,"message":"Done","result":result})
-    except Exception as e:
-        JOBS[job_id].update({"status":"error","message":str(e),"result":None})
-
-    return jsonify({"job_id": job_id})
-
-
-@app.route("/api/job/status/<job_id>")
-def api_job_status(job_id):
-    s = JOBS.get(job_id)
-    if not s:
-        return jsonify({"status":"error","error":"Unknown job"}), 404
-    return jsonify(s)
-
-
-def _single(data: dict, job_id: str) -> dict:
-    g = get_gen()
-    if not g: raise RuntimeError("Image generator not available — check Pillow install")
-
-    JOBS[job_id]["progress"] = 0.25
-    JOBS[job_id]["message"]  = "Rendering…"
-
-    language = str(data.get("language") or "en").strip().lower()
-    font_en = data.get("font_name_en") or data.get("font_name") or None
-    font_ur = data.get("font_name_ur") or data.get("font_name") or None
-    font_name = font_ur if language in ("ur", "urdu") else font_en
-
-    quote_src = data.get("quote", "")
-    if language in ("ur", "urdu"):
-        quote_src = data.get("translate") or data.get("quote", "")
-
-    quote_src = _sanitize_quote_author(quote_src, str(data.get("author", "")))
-
-    path = g.generate(
-        quote             = quote_src,
-        author            = data.get("author",""),
-        style             = data.get("style","elegant"),
-        category          = data.get("category",""),
-        author_image      = str(data.get("author_image") or ""),
-        watermark_mode    = "corner",
-        watermark_opacity = float(data.get("watermark_opacity") or 0.7),
-        watermark_blend   = str(data.get("watermark_blend") or "normal"),
-        avatar_position   = str(data.get("avatar_position") or "top-left"),
-        font_name         = font_name,
-        quote_font_size   = int(data.get("quote_font_size") or 52),
-        author_font_size  = int(data.get("author_font_size") or 30),
-        watermark_size_percent = float(data.get("watermark_size_percent") or 0.15),
-        watermark_position= "bottom-right",
-        background_mode   = str(data.get("background_mode") or "none"),
-        ai_model          = data.get("ai_model") or None,
-        hf_api_key        = data.get("hf_api_key") or None,
-        language          = language,
-    )
-
-    JOBS[job_id]["progress"] = 0.65
-    JOBS[job_id]["message"]  = "Writing to Sheet…"
-
-    sr = get_sheet()
-    upload_result = "Saved locally"
-    row   = data.get("row")
-    topic = data.get("topic","")
-    if sr and row and topic:
+Image Prompt:"""
+        
+        api_url = f"https://api-inference.huggingface.co/models/{model}"
+        
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "max_new_tokens": 150,
+                "temperature": 0.7,
+                "top_p": 0.9,
+                "return_full_text": False
+            }
+        }
+        
         try:
-            abs_url = f"http://localhost:8000/generated/{Path(path).name}"
-            ok = sr.write_back(str(topic), int(row), abs_url)
-            with __import__("PIL").Image.open(path) as im:
-                dims = f"{im.width}x{im.height}"
-            sr.write_generation_meta(int(row), dims, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
-            upload_result = "✅ Written to Sheet" if ok else "⚠️ Sheet write failed"
+            response = requests.post(api_url, headers=self.headers, json=payload, timeout=30)
+            response.raise_for_status()
+            
+            result = response.json()
+            if isinstance(result, list) and len(result) > 0:
+                generated_text = result[0].get("generated_text", "").strip()
+                # Clean up the response
+                generated_text = generated_text.replace("Image Prompt:", "").strip()
+                return generated_text if generated_text else self._fallback_prompt(quote, style)
+            
+            return self._fallback_prompt(quote, style)
+            
         except Exception as e:
-            upload_result = f"Sheet error: {e}"
-
-    drive_link = None
-    drive_error = None
-    if bool(data.get("upload_to_drive")):
-        JOBS[job_id]["progress"] = 0.82
-        JOBS[job_id]["message"]  = "Uploading to Google Drive…"
-        du = get_drive()
-        if not du:
-            drive_error = "Drive uploader not available"
-        else:
-            try:
-                drive_link = du.upload_image(path, topic=topic or None)
-                if not drive_link:
-                    drive_error = "Drive upload returned no link"
-            except Exception as e:
-                drive_error = str(e)
-
-    JOBS[job_id]["progress"] = 0.90
-    return {
-        "success":       True,
-        "image_path":    path,
-        "public_url":    f"/generated/{Path(path).name}",
-        "upload_result": upload_result,
-        "drive_link":    drive_link,
-        "drive_error":   drive_error,
-    }
-
-
-def _bulk(data: dict, job_id: str) -> dict:
-    g  = get_gen()
-    sr = get_sheet()
-    if not g: raise RuntimeError("Image generator not available")
-
-    topic  = data.get("topic","")
-    count  = int(data.get("count") or 5)
-    quotes = sr.get_quotes_by_topic(topic) if sr else []
-
-    import random
-    selected = random.sample(quotes, min(count, len(quotes))) if quotes else []
-    total    = max(1, len(selected))
-    done     = 0
-
-    language = str(data.get("language") or "en").strip().lower()
-    font_en = data.get("font_name_en") or data.get("font_name") or None
-    font_ur = data.get("font_name_ur") or data.get("font_name") or None
-    font_name = font_ur if language in ("ur", "urdu") else font_en
-
-    for q in selected:
-        JOBS[job_id]["message"]  = f"Generating {done+1}/{total}…"
-        JOBS[job_id]["progress"] = 0.10 + 0.80 * (done / total)
+            print(f"[WARN] Prompt generation failed: {e}")
+            return self._fallback_prompt(quote, style)
+    
+    def _fallback_prompt(self, quote: str, style: str) -> str:
+        """Fallback prompt if AI generation fails"""
+        mood_map = {
+            "gradient-blur": "soft gradient background with bokeh lights, dreamy atmosphere",
+            "dark-minimal": "dark minimalist design, geometric shapes, clean lines, navy blue",
+            "vibrant-pop": "vibrant pop art style, bold colors, pink and cyan, energetic",
+            "bold-geo": "bold geometric shapes, angular design, orange teal yellow",
+            "glassmorphism": "frosted glass effect, gradient orbs, modern blur",
+            "abstract-art": "abstract artistic illustration, creative composition, vivid colors"
+        }
+        
+        return f"{mood_map.get(style, 'beautiful background')}, high quality, professional design"
+    
+    def generate_image(self, prompt: str, model: str) -> Optional[bytes]:
+        """Generate image from prompt using diffusion model"""
+        
+        api_url = f"https://api-inference.huggingface.co/models/{model}"
+        
+        payload = {
+            "inputs": prompt,
+            "parameters": {
+                "num_inference_steps": 30,
+                "guidance_scale": 7.5
+            }
+        }
+        
         try:
-            quote_src = q.get("quote", "")
-            if language in ("ur", "urdu"):
-                quote_src = q.get("translate") or q.get("quote", "")
-            quote_src = _sanitize_quote_author(quote_src, str(q.get("author", "")))
+            response = requests.post(api_url, headers=self.headers, json=payload, timeout=60)
+            response.raise_for_status()
+            
+            return response.content
+            
+        except Exception as e:
+            print(f"[ERROR] Image generation failed: {e}")
+            return None
 
-            path = g.generate(
-                quote             = quote_src,
-                author            = q.get("author",""),
-                style             = data.get("style","elegant"),
-                category          = q.get("category",""),
-                author_image      = str(q.get("author_image") or q.get("image") or ""),
-                watermark_mode    = "corner",
-                watermark_opacity = float(data.get("watermark_opacity") or 0.7),
-                watermark_blend   = str(data.get("watermark_blend") or "normal"),
-                avatar_position   = str(data.get("avatar_position") or "top-left"),
-                font_name         = font_name,
-                quote_font_size   = int(data.get("quote_font_size") or 52),
-                author_font_size  = int(data.get("author_font_size") or 30),
-                watermark_size_percent = float(data.get("watermark_size_percent") or 0.15),
-                watermark_position= "bottom-right",
-                background_mode   = str(data.get("background_mode") or "none"),
-                ai_model          = data.get("ai_model") or None,
-                hf_api_key        = data.get("hf_api_key") or None,
-                language          = language,
+# ══════════════════════════════════════════════════════════════════════════════
+#  STORAGE PROVIDERS
+# ══════════════════════════════════════════════════════════════════════════════
+
+class StorageProvider:
+    """Base class for storage providers"""
+    
+    def upload(self, image_path: str, filename: str) -> Optional[str]:
+        raise NotImplementedError
+
+
+class LocalStorage(StorageProvider):
+    """No-op storage provider that keeps files locally and returns a local URL."""
+
+    def __init__(self, base_url: str = "/Generated_Images"):
+        self.base_url = base_url
+
+    def upload(self, image_path: str, filename: str) -> Optional[str]:
+        try:
+            # File already exists at image_path; just expose via static route.
+            return f"{self.base_url}/{os.path.basename(image_path)}"
+        except Exception:
+            return None
+
+
+class ImgBBStorage(StorageProvider):
+    """ImgBB image hosting"""
+    
+    def __init__(self, api_key: str):
+        self.api_key = api_key
+    
+    def upload(self, image_path: str, filename: str) -> Optional[str]:
+        try:
+            with open(image_path, 'rb') as f:
+                image_data = base64.b64encode(f.read()).decode('utf-8')
+            
+            response = requests.post(
+                'https://api.imgbb.com/1/upload',
+                data={
+                    'key': self.api_key,
+                    'image': image_data,
+                    'name': filename
+                },
+                timeout=30
             )
-            if sr and q.get("_row") and topic:
-                abs_url = f"http://localhost:8000/generated/{Path(path).name}"
-                sr.write_back(topic, int(q["_row"]), abs_url)
-                with __import__("PIL").Image.open(path) as im:
-                    dims = f"{im.width}x{im.height}"
-                sr.write_generation_meta(int(q["_row"]), dims, datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+            
+            response.raise_for_status()
+            data = response.json()
+            
+            if data.get('success'):
+                return data['data']['url']
+            
+            return None
+            
         except Exception as e:
-            print(f"[WARN] bulk gen: {e}")
-        done += 1
-
-    return {"success": True, "generated": done}
+            print(f"[ERROR] ImgBB upload failed: {e}")
+            return None
 
 
-@app.route("/api/drive/upload", methods=["POST"])
-def api_drive_upload():
-    data = request.get_json() or {}
-    filenames = data.get("filenames") or []
-    topic = str(data.get("topic") or "").strip() or None
-    if isinstance(filenames, str):
-        filenames = [filenames]
-    filenames = [str(x) for x in filenames if str(x).strip()]
-    if not filenames:
-        return jsonify({"ok": False, "error": "No filenames provided"}), 400
-
-    du = get_drive()
-    if not du:
-        return jsonify({"ok": False, "error": "Drive uploader not available"}), 503
-
-    out = []
-    for fn in filenames:
-        p = (BASE_DIR / "Generated_Images" / fn).resolve()
-        if not p.exists():
-            out.append({"filename": fn, "ok": False, "error": "File not found"})
-            continue
+class CloudinaryStorage(StorageProvider):
+    """Cloudinary cloud storage"""
+    
+    def __init__(self, credentials: str):
+        # Format: cloud_name:api_key:api_secret
+        parts = credentials.split(':')
+        if len(parts) != 3:
+            raise ValueError("Cloudinary credentials format: cloud_name:api_key:api_secret")
+        
+        self.cloud_name, self.api_key, self.api_secret = parts
+    
+    def upload(self, image_path: str, filename: str) -> Optional[str]:
         try:
-            link = du.upload_image(str(p), topic=topic)
-            if link:
-                out.append({"filename": fn, "ok": True, "link": link})
-            else:
-                out.append({"filename": fn, "ok": False, "error": "No link returned"})
+            import cloudinary
+            import cloudinary.uploader
+            
+            cloudinary.config(
+                cloud_name=self.cloud_name,
+                api_key=self.api_key,
+                api_secret=self.api_secret
+            )
+            
+            result = cloudinary.uploader.upload(
+                image_path,
+                public_id=filename.replace('.png', ''),
+                folder='quotes'
+            )
+            
+            return result['secure_url']
+            
         except Exception as e:
-            out.append({"filename": fn, "ok": False, "error": str(e)})
+            print(f"[ERROR] Cloudinary upload failed: {e}")
+            return None
 
-    return jsonify({"ok": True, "results": out})
 
+class GoogleDriveStorage(StorageProvider):
+    """Google Drive storage"""
+    
+    def __init__(self, credentials_path: str):
+        if not SHEETS_OK:
+            raise RuntimeError("Google Sheets libraries not installed")
+        
+        self.credentials_path = credentials_path
+    
+    def upload(self, image_path: str, filename: str) -> Optional[str]:
+        try:
+            from pydrive.auth import GoogleAuth
+            from pydrive.drive import GoogleDrive
+            
+            gauth = GoogleAuth()
+            gauth.credentials = ServiceAccountCredentials.from_json_keyfile_name(
+                self.credentials_path,
+                ['https://www.googleapis.com/auth/drive']
+            )
+            
+            drive = GoogleDrive(gauth)
+            
+            file = drive.CreateFile({
+                'title': filename,
+                'parents': [{'id': 'root'}]
+            })
+            file.SetContentFile(image_path)
+            file.Upload()
+            
+            # Make publicly accessible
+            file.InsertPermission({
+                'type': 'anyone',
+                'value': 'anyone',
+                'role': 'reader'
+            })
+            
+            return file['alternateLink']
+            
+        except Exception as e:
+            print(f"[ERROR] Google Drive upload failed: {e}")
+            return None
 
-@app.route("/api/drive/status")
-def api_drive_status():
-    if not DRIVE_OK:
-        return jsonify({"ok": False, "available": False, "error": "Drive uploader not available"})
-    if not (BASE_DIR / "credentials.json").exists():
-        return jsonify({"ok": False, "available": True, "connected": False, "error": "credentials.json not found"})
+# ══════════════════════════════════════════════════════════════════════════════
+#  DESIGN STYLES
+# ══════════════════════════════════════════════════════════════════════════════
 
-    du = get_drive()
-    if not du:
-        return jsonify({"ok": False, "available": True, "connected": False, "error": "Drive uploader init failed"})
+class QuoteImageGenerator:
+    """Generate quote images with multiple design styles"""
+    
+    STYLES = {
+        "gradient-blur": {
+            "bg_colors": [(255, 180, 150), (200, 150, 255), (150, 200, 255)],
+            "text_color": (255, 255, 255),
+            "blur_radius": 20,
+            "gradient": True
+        },
+        "dark-minimal": {
+            "bg_colors": [(20, 30, 48), (30, 45, 70)],
+            "text_color": (255, 255, 255),
+            "blur_radius": 0,
+            "gradient": True,
+            "geometric": True
+        },
+        "vibrant-pop": {
+            "bg_colors": [(255, 20, 147), (0, 191, 255), (255, 215, 0)],
+            "text_color": (255, 255, 255),
+            "blur_radius": 0,
+            "gradient": False,
+            "bold": True
+        },
+        "bold-geo": {
+            "bg_colors": [(255, 127, 80), (64, 224, 208), (255, 215, 0)],
+            "text_color": (40, 40, 40),
+            "blur_radius": 0,
+            "gradient": False,
+            "geometric": True
+        },
+        "glassmorphism": {
+            "bg_colors": [(135, 206, 250), (255, 182, 193), (221, 160, 221)],
+            "text_color": (255, 255, 255),
+            "blur_radius": 30,
+            "gradient": True,
+            "glass": True
+        },
+        "abstract-art": {
+            "bg_colors": [(255, 99, 71), (30, 144, 255), (50, 205, 50)],
+            "text_color": (255, 255, 255),
+            "blur_radius": 5,
+            "gradient": True,
+            "artistic": True
+        }
+    }
+    
+    def __init__(self, width: int = 1080, height: int = 1080):
+        if not PIL_OK:
+            raise RuntimeError("PIL not available")
+        
+        self.width = width
+        self.height = height
+    
+    def generate(self, 
+                 quote: str,
+                 author: str,
+                 style: str,
+                 ai_bg_image: Optional[bytes] = None,
+                 logo_path: Optional[str] = None,
+                 output_path: Optional[str] = None) -> str:
+        """Generate quote image"""
+        
+        if style not in self.STYLES:
+            style = "gradient-blur"
+        
+        style_config = self.STYLES[style]
+        
+        # Create base image
+        if ai_bg_image:
+            # Use AI-generated background
+            try:
+                bg = Image.open(BytesIO(ai_bg_image))
+                bg = bg.resize((self.width, self.height), Image.Resampling.LANCZOS)
+                bg = bg.convert('RGB')
+            except:
+                bg = self._create_gradient_background(style_config)
+        else:
+            bg = self._create_gradient_background(style_config)
+        
+        # Apply style effects
+        if style_config.get('blur_radius', 0) > 0:
+            bg = bg.filter(ImageFilter.GaussianBlur(style_config['blur_radius']))
+        
+        # Add overlay for text readability
+        overlay = Image.new('RGBA', bg.size, (0, 0, 0, 0))
+        overlay_draw = ImageDraw.Draw(overlay)
+        
+        if style_config.get('glass'):
+            # Glassmorphism effect
+            overlay_draw.rounded_rectangle(
+                [(100, 200), (self.width - 100, self.height - 200)],
+                radius=30,
+                fill=(255, 255, 255, 30)
+            )
+        else:
+            # Dark overlay for text contrast
+            overlay_draw.rectangle(
+                [(0, 0), (self.width, self.height)],
+                fill=(0, 0, 0, 60)
+            )
+        
+        bg = Image.alpha_composite(bg.convert('RGBA'), overlay).convert('RGB')
+        
+        # Draw text
+        draw = ImageDraw.Draw(bg)
+        
+        # Load fonts
+        try:
+            quote_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf", 60)
+            author_font = ImageFont.truetype("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf", 40)
+        except:
+            quote_font = ImageFont.load_default()
+            author_font = ImageFont.load_default()
+        
+        # Draw quote
+        quote_text = f'"{quote}"'
+        quote_wrapped = self._wrap_text(quote_text, quote_font, self.width - 200)
+        
+        y_offset = self.height // 3
+        for line in quote_wrapped:
+            bbox = draw.textbbox((0, 0), line, font=quote_font)
+            line_width = bbox[2] - bbox[0]
+            x = (self.width - line_width) // 2
+            
+            # Text shadow
+            draw.text((x + 2, y_offset + 2), line, font=quote_font, fill=(0, 0, 0, 128))
+            # Main text
+            draw.text((x, y_offset), line, font=quote_font, fill=style_config['text_color'])
+            
+            y_offset += bbox[3] - bbox[1] + 20
+        
+        # Draw author
+        author_text = f"— {author}"
+        author_bbox = draw.textbbox((0, 0), author_text, font=author_font)
+        author_width = author_bbox[2] - author_bbox[0]
+        author_x = (self.width - author_width) // 2
+        author_y = y_offset + 40
+        
+        draw.text((author_x + 2, author_y + 2), author_text, font=author_font, fill=(0, 0, 0, 128))
+        draw.text((author_x, author_y), author_text, font=author_font, fill=style_config['text_color'])
+        
+        # Add logo/watermark
+        if logo_path and os.path.exists(logo_path):
+            try:
+                logo = Image.open(logo_path)
+                logo_size = min(self.width // 8, 150)
+                logo.thumbnail((logo_size, logo_size), Image.Resampling.LANCZOS)
+                
+                # Position: bottom-right
+                logo_x = self.width - logo_size - 40
+                logo_y = self.height - logo_size - 40
+                
+                if logo.mode == 'RGBA':
+                    bg.paste(logo, (logo_x, logo_y), logo)
+                else:
+                    bg.paste(logo, (logo_x, logo_y))
+            except Exception as e:
+                print(f"[WARN] Logo placement failed: {e}")
+        
+        # Save
+        if not output_path:
+            output_path = str(OUTPUT_DIR / f"quote_{uuid.uuid4().hex[:8]}.png")
+        
+        bg.save(output_path, 'PNG', quality=95, optimize=True)
+        return output_path
+    
+    def _create_gradient_background(self, config: dict) -> Image.Image:
+        """Create gradient background"""
+        bg = Image.new('RGB', (self.width, self.height))
+        draw = ImageDraw.Draw(bg)
+        
+        colors = config['bg_colors']
+        
+        if config.get('gradient'):
+            # Smooth gradient
+            for y in range(self.height):
+                ratio = y / self.height
+                if len(colors) == 2:
+                    r = int(colors[0][0] * (1 - ratio) + colors[1][0] * ratio)
+                    g = int(colors[0][1] * (1 - ratio) + colors[1][1] * ratio)
+                    b = int(colors[0][2] * (1 - ratio) + colors[1][2] * ratio)
+                else:
+                    idx = int(ratio * (len(colors) - 1))
+                    local_ratio = (ratio * (len(colors) - 1)) - idx
+                    next_idx = min(idx + 1, len(colors) - 1)
+                    
+                    r = int(colors[idx][0] * (1 - local_ratio) + colors[next_idx][0] * local_ratio)
+                    g = int(colors[idx][1] * (1 - local_ratio) + colors[next_idx][1] * local_ratio)
+                    b = int(colors[idx][2] * (1 - local_ratio) + colors[next_idx][2] * local_ratio)
+                
+                draw.line([(0, y), (self.width, y)], fill=(r, g, b))
+        else:
+            # Solid or geometric
+            draw.rectangle([(0, 0), (self.width, self.height)], fill=colors[0])
+            
+            if config.get('geometric'):
+                # Add geometric shapes
+                import random
+                for _ in range(5):
+                    color = random.choice(colors)
+                    size = random.randint(100, 300)
+                    x = random.randint(0, self.width - size)
+                    y = random.randint(0, self.height - size)
+                    draw.ellipse([(x, y), (x + size, y + size)], fill=color + (50,))
+        
+        return bg
+    
+    def _wrap_text(self, text: str, font: ImageFont.FreeTypeFont, max_width: int) -> List[str]:
+        """Wrap text to fit width"""
+        words = text.split()
+        lines = []
+        current_line = []
+        
+        for word in words:
+            test_line = ' '.join(current_line + [word])
+            bbox = font.getbbox(test_line)
+            if bbox[2] <= max_width:
+                current_line.append(word)
+            else:
+                if current_line:
+                    lines.append(' '.join(current_line))
+                current_line = [word]
+        
+        if current_line:
+            lines.append(' '.join(current_line))
+        
+        return lines
 
+# ══════════════════════════════════════════════════════════════════════════════
+#  GOOGLE SHEETS INTEGRATION
+# ══════════════════════════════════════════════════════════════════════════════
+
+class GoogleSheetsReader:
+    """Read quotes from Google Sheets"""
+    
+    EXPECTED_COLUMNS = [
+        'S#', 'LENGTH', 'CATEGORY', 'AUTHOR', 'QUOTE', 'TAGS',
+        'IMAGE', 'AI_PROMPT', 'DESIGN_STYLE', 'COLOR_SCHEME',
+        'PREVIEW_LINK', 'STATUS', 'DIMENSIONS', 'GENERATED_AT'
+    ]
+    
+    def __init__(self, credentials_path: str = 'credentials.json'):
+        if not SHEETS_OK:
+            raise RuntimeError("Google Sheets libraries not installed")
+        
+        scope = [
+            'https://spreadsheets.google.com/feeds',
+            'https://www.googleapis.com/auth/drive'
+        ]
+        
+        creds = ServiceAccountCredentials.from_json_keyfile_name(credentials_path, scope)
+        self.client = gspread.authorize(creds)
+    
+    def read_quotes(self, sheet_url: str) -> List[Dict]:
+        """Read all quotes from sheet"""
+        try:
+            sheet = self.client.open_by_url(sheet_url).sheet1
+            records = sheet.get_all_records()
+            
+            quotes = []
+            for i, record in enumerate(records, start=2):  # Start from row 2 (after header)
+                if record.get('QUOTE'):
+                    quotes.append({
+                        'row': i,
+                        'quote': str(record.get('QUOTE', '')).strip(),
+                        'author': str(record.get('AUTHOR', 'Unknown')).strip(),
+                        'category': str(record.get('CATEGORY', '')).strip(),
+                        'tags': str(record.get('TAGS', '')).strip(),
+                        'length': str(record.get('LENGTH', '')).strip(),
+                    })
+            
+            return quotes
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to read sheet: {e}")
+            return []
+    
+    def update_row(self, sheet_url: str, row: int, updates: Dict) -> bool:
+        """Update specific columns in a row"""
+        try:
+            sheet = self.client.open_by_url(sheet_url).sheet1
+            headers = sheet.row_values(1)
+            
+            for column, value in updates.items():
+                if column in headers:
+                    col_index = headers.index(column) + 1
+                    sheet.update_cell(row, col_index, value)
+            
+            return True
+            
+        except Exception as e:
+            print(f"[ERROR] Failed to update row {row}: {e}")
+            return False
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  BULK PROCESSING
+# ══════════════════════════════════════════════════════════════════════════════
+
+def process_bulk_generation(job_id: str, payload: dict):
+    """Background task for bulk generation"""
+    
+    job = JOBS[job_id]
+    
     try:
-        ok = bool(du.connect())
-        return jsonify({"ok": True, "available": True, "connected": ok})
+        # Extract config
+        sheet_url = payload['sheet_url']
+        design_style = payload['design_style']
+        storage_provider = payload['storage_provider']
+        storage_api_key = payload['storage_api_key']
+        hf_token = payload['hf_token']
+        prompt_model = payload['prompt_model']
+        image_model = payload['image_model']
+        logo_base64 = payload.get('logo')
+        watermark_file = payload.get('watermark_file')
+        
+        # Save logo if provided (overrides watermark selection)
+        logo_path = None
+        if logo_base64:
+            logo_data = base64.b64decode(logo_base64.split(',')[1])
+            logo_path = str(LOGOS_DIR / f"logo_{job_id}.png")
+            with open(logo_path, 'wb') as f:
+                f.write(logo_data)
+        elif watermark_file:
+            # Use selectable watermark from Watermarks folder
+            candidate = (LOGOS_DIR / str(watermark_file)).resolve()
+            try:
+                if LOGOS_DIR.resolve() in candidate.parents and candidate.exists():
+                    logo_path = str(candidate)
+            except Exception:
+                logo_path = None
+        
+        # Initialize components
+        hf_api = HuggingFaceAPI(hf_token)
+        generator = QuoteImageGenerator()
+        
+        # Storage
+        if storage_provider == 'imgbb':
+            storage = ImgBBStorage(storage_api_key)
+        elif storage_provider == 'cloudinary':
+            storage = CloudinaryStorage(storage_api_key)
+        elif storage_provider == 'gdrive':
+            storage = GoogleDriveStorage(storage_api_key)
+        elif storage_provider == 'local':
+            storage = LocalStorage()
+        else:
+            raise ValueError(f"Unknown storage provider: {storage_provider}")
+        
+        # Read quotes from sheet
+        job['message'] = 'Reading quotes from Google Sheet...'
+        job['progress'] = 10
+        
+        sheets_reader = GoogleSheetsReader() if SHEETS_OK else None
+        if sheets_reader:
+            quotes = sheets_reader.read_quotes(sheet_url)
+        else:
+            # Fallback: mock data for testing
+            quotes = []
+        
+        if not quotes:
+            raise ValueError("No quotes found in sheet")
+        
+        total_quotes = len(quotes)
+        results = []
+        processed = 0
+        success = 0
+        failed = 0
+        
+        # Process each quote
+        for i, quote_data in enumerate(quotes):
+            try:
+                job['message'] = f"Processing quote {i + 1}/{total_quotes}..."
+                job['progress'] = 10 + int((i / total_quotes) * 80)
+                job['processed'] = processed
+                job['success'] = success
+                job['failed'] = failed
+                
+                quote = quote_data['quote']
+                author = quote_data['author']
+                row = quote_data['row']
+                
+                # Step 1: Generate AI prompt
+                ai_prompt = hf_api.generate_image_prompt(quote, author, design_style, prompt_model)
+                
+                # Step 2: Generate background image
+                bg_image_bytes = hf_api.generate_image(ai_prompt, image_model)
+                
+                # Step 3: Create quote image
+                output_path = generator.generate(
+                    quote=quote,
+                    author=author,
+                    style=design_style,
+                    ai_bg_image=bg_image_bytes,
+                    logo_path=logo_path
+                )
+                
+                # Step 4: Upload to storage
+                filename = f"quote_{row}_{uuid.uuid4().hex[:8]}.png"
+                image_url = storage.upload(output_path, filename)
+                
+                if image_url:
+                    # Update Google Sheet
+                    if sheets_reader:
+                        sheets_reader.update_row(sheet_url, row, {
+                            'IMAGE': image_url,
+                            'AI_PROMPT': ai_prompt,
+                            'DESIGN_STYLE': design_style,
+                            'PREVIEW_LINK': image_url,
+                            'STATUS': 'Generated',
+                            'DIMENSIONS': '1080x1080',
+                            'GENERATED_AT': datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+                        })
+                    
+                    results.append({
+                        'quote': quote,
+                        'author': author,
+                        'image_url': image_url,
+                        'ai_prompt': ai_prompt,
+                        'style': design_style,
+                        'local_path': output_path
+                    })
+                    
+                    success += 1
+                else:
+                    failed += 1
+                
+                processed += 1
+                
+                # Small delay to avoid rate limits
+                time.sleep(1)
+                
+            except Exception as e:
+                print(f"[ERROR] Failed to process quote {i + 1}: {e}")
+                failed += 1
+                processed += 1
+        
+        # Complete
+        job['status'] = 'completed'
+        job['progress'] = 100
+        job['message'] = f'Completed! {success} success, {failed} failed'
+        job['processed'] = processed
+        job['success'] = success
+        job['failed'] = failed
+        job['results'] = results
+        
     except Exception as e:
-        return jsonify({"ok": False, "available": True, "connected": False, "error": str(e)})
+        job['status'] = 'failed'
+        job['error'] = str(e)
+        job['message'] = f'Error: {str(e)}'
+        print(f"[ERROR] Bulk generation failed: {e}")
+
+# ══════════════════════════════════════════════════════════════════════════════
+#  API ROUTES
+# ══════════════════════════════════════════════════════════════════════════════
+
+@app.route('/')
+def index():
+    return send_file('index.html')
 
 
-@app.route("/api/translate/status")
-def api_translate_status():
-    if not _TRANSLATE_OK:
-        return jsonify({"ok": False, "available": False, "error": "googletrans not installed"})
+@app.route('/api/settings')
+def api_settings():
+    """Return non-secret settings to drive UI selections."""
     try:
-        t = Translator()
-        res = t.translate("Hello", src="en", dest="ur")
-        txt = str(getattr(res, 'text', '') or '')
-        return jsonify({"ok": True, "available": True, "working": bool(txt), "sample": txt})
+        watermarks = []
+        try:
+            for p in sorted(LOGOS_DIR.glob('*.png')):
+                watermarks.append(p.name)
+        except Exception:
+            watermarks = []
+
+        default_storage = str(_env('DEFAULT_STORAGE_PROVIDER', 'imgbb')).strip().lower()
+        if default_storage not in ('imgbb', 'cloudinary', 'gdrive', 'local'):
+            default_storage = 'imgbb'
+
+        return jsonify({
+            'ok': True,
+            'data_source_options': ['google_sheets'],
+            'default_data_source': 'google_sheets',
+            'sheet_url_fixed': True,
+            'storage_options': ['imgbb', 'cloudinary', 'gdrive', 'local'],
+            'default_storage_provider': default_storage,
+            'ai_options': ['huggingface'],
+            'default_ai_provider': 'huggingface',
+            'watermark_options': watermarks,
+            'default_watermark': watermarks[0] if watermarks else None,
+        })
     except Exception as e:
-        return jsonify({"ok": False, "available": True, "working": False, "error": str(e)})
+        return jsonify({'ok': False, 'error': str(e)}), 500
+
+
+@app.route('/Generated_Images/<path:filename>')
+def serve_generated_images(filename: str):
+    return send_from_directory(str(OUTPUT_DIR), filename)
+
+
+@app.route('/Watermarks/<path:filename>')
+def serve_watermarks(filename: str):
+    return send_from_directory(str(LOGOS_DIR), filename)
+
+@app.route('/api/bulk-generate', methods=['POST'])
+def api_bulk_generate():
+    """Start bulk generation job"""
+    try:
+        payload = request.get_json() or {}
+
+        # Allow UI to omit values; fall back to settings/env.
+        sheet_url = payload.get('sheet_url') or _get_sheet_url()
+        design_style = payload.get('design_style')
+        storage_provider = payload.get('storage_provider')
+        storage_api_key = payload.get('storage_api_key') or _get_storage_secret(storage_provider)
+        hf_token = payload.get('hf_token') or _get_hf_token()
+
+        # Validate
+        if not sheet_url:
+            return jsonify({'success': False, 'error': 'Missing sheet_url (configure GOOGLE_SHEET_URL or references/config.json)'}), 400
+        if not design_style:
+            return jsonify({'success': False, 'error': 'Missing design_style'}), 400
+        if not storage_provider:
+            return jsonify({'success': False, 'error': 'Missing storage_provider'}), 400
+        if storage_provider != 'local' and not storage_api_key:
+            return jsonify({'success': False, 'error': f'Missing storage_api_key for provider: {storage_provider}'}), 400
+        if not hf_token:
+            return jsonify({'success': False, 'error': 'Missing hf_token (configure HUGGINGFACE_API_TOKEN or HF_API_TOKEN)'}), 400
+
+        payload['sheet_url'] = sheet_url
+        payload['storage_api_key'] = storage_api_key
+        payload['hf_token'] = hf_token
+        
+        # Create job
+        job_id = uuid.uuid4().hex
+        JOBS[job_id] = {
+            'status': 'running',
+            'progress': 0,
+            'message': 'Initializing...',
+            'processed': 0,
+            'success': 0,
+            'failed': 0,
+            'results': []
+        }
+        
+        # Start background thread
+        thread = threading.Thread(target=process_bulk_generation, args=(job_id, payload))
+        thread.daemon = True
+        thread.start()
+        
+        return jsonify({'success': True, 'job_id': job_id})
+        
+    except Exception as e:
+        return jsonify({'success': False, 'error': str(e)}), 500
+
+@app.route('/api/job-status/<job_id>')
+def api_job_status(job_id):
+    """Get job status"""
+    job = JOBS.get(job_id)
+    
+    if not job:
+        return jsonify({'error': 'Job not found'}), 404
+    
+    return jsonify(job)
+
+@app.route('/api/download-all', methods=['POST'])
+def api_download_all():
+    """Download all generated images as ZIP"""
+    try:
+        data = request.get_json()
+        images = data.get('images', [])
+        
+        # Create ZIP
+        zip_path = TEMP_DIR / f"quotes_{uuid.uuid4().hex[:8]}.zip"
+        
+        with zipfile.ZipFile(zip_path, 'w') as zipf:
+            for img in images:
+                local_path = img.get('local_path')
+                if local_path and os.path.exists(local_path):
+                    zipf.write(local_path, os.path.basename(local_path))
+        
+        return send_file(zip_path, as_attachment=True, download_name='quotes.zip')
+        
+    except Exception as e:
+        return jsonify({'error': str(e)}), 500
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  STAGE 4 — POST  (placeholder)
+#  MAIN
 # ══════════════════════════════════════════════════════════════════════════════
 
-@app.route("/api/post/platforms")
-def api_post_platforms():
-    return jsonify({"platforms": [
-        {"id":"instagram","label":"Instagram",  "icon":"📸","connected":False},
-        {"id":"facebook", "label":"Facebook",   "icon":"👥","connected":False},
-        {"id":"twitter",  "label":"X / Twitter","icon":"🐦","connected":False},
-        {"id":"pinterest","label":"Pinterest",  "icon":"📌","connected":False},
-    ]})
-
-
-@app.route("/api/post/queue")
-def api_post_queue():
-    gen_dir = BASE_DIR / "Generated_Images"
-    images  = []
-    if gen_dir.exists():
-        files = sorted(
-            list(gen_dir.glob("*.png")) + list(gen_dir.glob("*.jpg")),
-            key=lambda x: x.stat().st_mtime, reverse=True
-        )
-        for f in files[:24]:
-            images.append({"filename": f.name, "url": f"/generated/{f.name}",
-                           "size": f.stat().st_size, "posted": False})
-    return jsonify({"images": images})
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  STATIC
-# ══════════════════════════════════════════════════════════════════════════════
-
-@app.route("/generated/<filename>")
-def serve_generated(filename):
-    return send_from_directory(BASE_DIR / "Generated_Images", filename)
-
-
-# ══════════════════════════════════════════════════════════════════════════════
-#  ENTRY POINT
-# ══════════════════════════════════════════════════════════════════════════════
-
-if __name__ == "__main__":
-    (BASE_DIR / "Generated_Images").mkdir(exist_ok=True)
-    (BASE_DIR / "Export").mkdir(exist_ok=True)
-    (BASE_DIR / "templates").mkdir(exist_ok=True)
-
-    print("\n" + "═"*62)
-    print(f"  🎑  QuoteMaster  v{APP_VERSION_UNIFIED}")
-    print("═"*62)
-    print("  📥  Collect  →  ✅  Review  →  🖼  Generate  →  📤  Post")
-    print(f"\n  🌐  http://localhost:8000\n")
-    debug = os.getenv("DASHBOARD_DEBUG","").strip().lower() in ("1","true","yes")
-    app.run(host="0.0.0.0", port=8000, debug=debug, use_reloader=False)
+if __name__ == '__main__':
+    print("\n" + "="*70)
+    print("  🎨 AI Quote Generator Pro - Bulk Social Media Content Creator")
+    print("="*70)
+    print("\n  ✨ Features:")
+    print("     • 6 Modern Design Styles")
+    print("     • Hugging Face AI Integration")
+    print("     • Multiple Storage Providers (ImgBB, Cloudinary, Google Drive)")
+    print("     • Bulk Processing with Google Sheets")
+    print("     • Custom Logo Support")
+    print("\n  🌐 Server: http://localhost:5000")
+    print("="*70 + "\n")
+    
+    app.run(host='0.0.0.0', port=5000, debug=True)
